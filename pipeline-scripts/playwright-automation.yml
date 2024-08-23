@@ -1,0 +1,65 @@
+pool:
+    name: Default
+
+variables:
+  - group: VisualTests
+
+trigger: none
+
+resources:
+  pipelines: 
+  - pipeline: 'ci-pipeline'
+    source: '{XYZ}'
+    project: ABC
+    trigger: true
+
+jobs:
+- job: Triggered_Build
+  workspace:
+    clean: all
+  steps:
+  - download: 'ci-pipeline'
+    artifact: csvArtifacts
+  - checkout: self
+  - task: NodeTool@0
+    displayName: 'Use Node version 16'
+    inputs:
+      versionSpec: 16.x
+  - script: |
+      npm ci
+    displayName: "NPM Install"
+  - script: |
+      npx playwright install --with-deps chromium
+    displayName: "Playwright Install"
+  - script: |
+      set CI=true
+      set PLAYWRIGHT_JUNIT_OUTPUT_NAME=results.xml
+      npx playwright test
+    displayName: "Run Playwright Tests"
+    continueOnError: true
+    env:
+      CLIENT_SECRET: $(CLIENT_SECRET)
+  - task: ArchiveFiles@2
+    displayName: 'Add playwright-report to Archive'
+    inputs:
+      rootFolderOrFile: '$(Pipeline.Workspace)/s/playwright-report/'
+      archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+  - task: ArchiveFiles@2
+    displayName: 'Add test-results to Archive'
+    inputs:
+      rootFolderOrFile: '$(Pipeline.Workspace)/s/test-results/'
+      archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+      replaceExistingArchive: false
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Pipeline Artifacts'
+    inputs:
+      PathtoPublish: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+      ArtifactName: pipeline-artifacts
+      PublishLocation: Container        
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(Pipeline.Workspace)/s/test-results/results.xml'
+      failTaskOnFailedTests: true
+      testRunTitle: 'Playwright Testing Results'
+    displayName: 'Publish Test Results'
