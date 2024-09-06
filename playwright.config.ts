@@ -1,11 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// require('dotenv').config();
-
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -17,8 +10,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Assume this is not CI, so running 10 parallel workers */
+  workers: 10,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   /* Thanks to link for config settings: https://ultimateqa.com/playwright-reporters-how-to-integrate-with-azure-devops-pipelines/*/
   reporter: [['html', {open: 'never'}],['junit', { outputFile: 'test-results/results.xml' }]],
@@ -47,8 +40,8 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-    }/*,
-    {
+    },
+    /*{
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
     },
@@ -68,10 +61,11 @@ export default defineConfig({
     // },
 
     /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
+     {
+       name: 'Microsoft Edge',
+       use: { ...devices['Desktop Edge'], channel: 'msedge' },
+     }
+     //,
     // {
     //   name: 'Google Chrome',
     //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },

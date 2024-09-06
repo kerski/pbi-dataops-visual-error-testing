@@ -9,3 +9,4 @@ localsettings.json
 /blob-report/
 /playwright/.cache/
 test-cases/*.csv
+.env

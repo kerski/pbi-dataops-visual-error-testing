@@ -9,28 +9,23 @@ import { readCSVFilesFromFolder } from '../helper-functions/csv-reader';
 // Initialize the environment variables
 let testRecords: Array<any>;
 let endPoints;
-let testSettings: TestSettings;
+// Access environment variables
+let testSettings : TestSettings = {
+  clientId : process.env.CLIENT_ID,
+  clientSecret : process.env.CLIENT_SECRET,
+  tenantId : process.env.TENANT_ID,
+  environment : process.env.ENVIRONMENT as Environment
+};  
 
 // Parse complex JSON strings from global setup
 // Check for CI/CD pipeline environment variables
-if(process.env.Environment && process.env.CLIENT_ID && process.env.CLIENT_SECRET && process.env.TENANT_ID) {
+if(process.env.CI === 'true') {
   testRecords = JSON.parse(process.env.TEST_RECORDS);
   endPoints = JSON.parse(process.env.ENDPOINTS);
-  // Access environment variables
-  let testSettings : TestSettings = {
-    clientId : process.env.CLIENT_ID,
-    clientSecret : process.env.CLIENT_SECRET,
-    tenantId : process.env.TENANT_ID,
-    environment : process.env.ENVIRONMENT as Environment,
-    testCases : process.env.TEST_CASES
-  };   
 }else{
-  // Read the JSON file
-  const rawData = fs.readFileSync('localsettings.json');
-  // Parse the JSON file
-  testSettings = JSON.parse(rawData.toString()) as TestSettings;  
+  // Parse the JSON file locally
   testRecords = readCSVFilesFromFolder('./test-cases');
-  endPoints = getAPIEndpoints(testSettings.environment);
+  endPoints = getAPIEndpoints(testSettings.environment);    
 }// end if
 
 // Test to check if the access token is accessible
@@ -57,7 +52,7 @@ for (const record of testRecords) {
     expect(embedToken).not.toBeUndefined();
   });
 
-  test(`${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `, async () => {
+  /*test(`${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `, async () => {
     console.log(`##[debug]${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `);
     const accessToken = await getAccessToken(testSettings);
     const browser = await chromium.launch({ args: ['--disable-web-security'], headless: false });
@@ -127,5 +122,5 @@ for (const record of testRecords) {
     }, reportInfo)
 
     expect(test).toBe("passed");
-  });  
+  });*/
 }

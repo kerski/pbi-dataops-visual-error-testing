@@ -11,6 +11,7 @@
     "combined-stream": "^1.0.8",
     "csv-parse": "^5.5.6",
     "delayed-stream": "^1.0.0",
+    "dotenv": "^16.4.5",
     "ecdsa-sig-formatter": "^1.0.11",
     "es6-promise": "^3.3.1",
     "follow-redirects": "^1.15.6",

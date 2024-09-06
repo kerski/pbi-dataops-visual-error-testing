@@ -1,0 +1,52 @@
+# Thanks to: https://medium.com/@info_70421/running-playwright-tests-via-azure-devops-pipeline-6b39e34e361b
+parameters:
+  - name: BASE_URL
+    type: string
+
+jobs:
+  - job: test
+    displayName: Run Playwright Tests
+    steps:
+      - download: none
+      - checkout: self
+      - task: NodeTool@0
+        displayName: 'Use Node version 16'
+        inputs:
+          versionSpec: 16.x
+      - script: |
+          npm ci
+        displayName: "NPM Install"
+      - script: |
+          npx playwright install --with-deps
+        displayName: "Playwright Install"
+      - script: |
+          set BASE_URL=${{ parameters.BASE_URL }}
+          set CI=true
+          set PLAYWRIGHT_JUNIT_OUTPUT_NAME=results.xml
+          npx playwright test
+        displayName: "Run Playwright Tests"
+        continueOnError: true
+        env:
+          CLIENT_SECRET: $(CLIENT_SECRET)
+      - task: ArchiveFiles@2
+        displayName: 'Add playwright-report to Archive'
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)/s/playwright-report/'
+          archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+      - task: ArchiveFiles@2
+        displayName: 'Add test-results to Archive'
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)/s/test-results/'
+          archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+          replaceExistingArchive: false
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish Pipeline Artifacts'
+        inputs:
+          targetPath: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
+          artifact: pipeline-artifacts
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: 'JUnit'
+          testResultsFiles: '$(Pipeline.Workspace)/s/test-results/results.xml'
+          testRunTitle: 'Playwright ADO Demo - $(System.StageName)'
+        displayName: 'Publish Test Results'
