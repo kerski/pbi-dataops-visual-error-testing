@@ -110,7 +110,6 @@ export async function getAccessToken(testSettings:TestSettings): Promise<string 
       authority: `${endpoint.loginUrl}/${testSettings.tenantId}`
     }
   };
-
   // Create a ConfidentialClientApplication object
   const cca = new ConfidentialClientApplication(pca);
 
@@ -127,9 +126,7 @@ export async function getAccessToken(testSettings:TestSettings): Promise<string 
 }
 
 // Function to get embed token
-export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, testSettings: TestSettings): Promise<string | undefined> {
-  // Get access token
-  const accessToken = await getAccessToken(testSettings);
+export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, accessToken: any): Promise<string | undefined> {
   // Define the URL for the embed token
   const url = `${endpoint.apiPrefix}/v1.0/myorg/groups/${embedInfo.workspaceId}/reports/${embedInfo.reportId}/generatetoken`;
   // Define the headers for the request
@@ -162,13 +159,11 @@ export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, t
     };
   }// end embedInfo check
 
-  //console.log(jsonBody);
-
   try {
     // Acquire an embed token
     const response = await axios.post(url, jsonBody, { headers: headers });
     return response.data.token;
   } catch (error) {
-    console.error(`Failed to get access token: ${error}`);
+    console.error(`Failed to get embed token: ${error}`);
   }
 }

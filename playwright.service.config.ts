@@ -28,12 +28,9 @@ const os = process.env.PLAYWRIGHT_SERVICE_OS || 'linux';
 
 export default defineConfig(config, {
   // Define more generous timeout for the service operation if necessary.
-  // timeout: 60000,
-  // expect: {
-  //   timeout: 10000,
-  // },
+  timeout: 2 * 60 * 1000,
   workers: 20,
-
+  retries: 1,
   // Enable screenshot testing and configure directory with expectations.
   // https://learn.microsoft.com/azure/playwright-testing/how-to-configure-visual-comparisons
   ignoreSnapshots: false,
@@ -55,6 +52,6 @@ export default defineConfig(config, {
       exposeNetwork: '<loopback>'
     }
   },
-  // Tenmp workaround for config merge bug in OSS https://github.com/microsoft/playwright/pull/28224
+  // Temp workaround for config merge bug in OSS https://github.com/microsoft/playwright/pull/28224
   projects: config.projects? config.projects : [{}]
 });

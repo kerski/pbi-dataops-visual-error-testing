@@ -3,8 +3,10 @@ import { chromium } from 'playwright';
 import { getAccessToken, getEmbedToken, EmbedInfo, TestSettings, getAPIEndpoints } from '../helper-functions/token-helpers';
 // Used for local testings
 import { IReportEmbedConfiguration } from 'powerbi-client';
-import fs from 'fs';
 import { readCSVFilesFromFolder } from '../helper-functions/csv-reader';
+import { logToConsole } from '../helper-functions/logging';
+
+/* VARIABLES */
 
 // Initialize the environment variables
 let testRecords: Array<any>;
@@ -17,46 +19,60 @@ let testSettings : TestSettings = {
   environment : process.env.ENVIRONMENT as Environment
 };  
 
-// Parse complex JSON strings from global setup
-// Check for CI/CD pipeline environment variables
-if(process.env.CI === 'true') {
-  testRecords = JSON.parse(process.env.TEST_RECORDS);
-  endPoints = JSON.parse(process.env.ENDPOINTS);
-}else{
-  // Parse the JSON file locally
-  testRecords = readCSVFilesFromFolder('./test-cases');
-  endPoints = getAPIEndpoints(testSettings.environment);    
-}// end if
+// Parse the JSON file locally
+testRecords = readCSVFilesFromFolder('./test-cases');
+//testRecords = testRecords.slice(0,2);
+endPoints = getAPIEndpoints(testSettings.environment);  
+// Set logging for debugging
+let isVerboseLogging: boolean = false;  
+// Get Access Token
+let testAccessToken: string | undefined = ""
+
+// Make sure to get token
+// Assume testing takes less then an hour at this point (before token expires)
+test.beforeAll(async () => {
+  testAccessToken = await getAccessToken(testSettings);
+  //isVerboseLogging = true;
+});
+
+/* TESTS */
 
 // Test to check if the access token is accessible
 test('test if access token can be generated from the environment variables provided.', async ({ }) => {
   console.log('##[debug]Test if access token can be generated from the environment variables provided.')
-  const token = await getAccessToken(testSettings);
+  const token = testAccessToken  
+  logToConsole('******** ' + token + '********', isVerboseLogging);
   expect(token).not.toBeUndefined();
 });
 
-
 // Test each record to check if the embed token is accessible
-for (const record of testRecords) {
-  test(`test ${record.test_case} embed token is accessible`, async ({ }) => {
-    console.log(`##[debug]test ${record.test_case} embed token is accessible`);
-    const tmpEmbedInfo: EmbedInfo = {
-      workspaceId: record.workspace_id,
-      reportId: record.report_id,
-      datasetId: record.dataset_id,
-      pageId: record.page_id,
-      userName: record.user_name,
-      role: record.role
-    };
-    const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testSettings);
-    expect(embedToken).not.toBeUndefined();
-  });
+testRecords.forEach((record) => {
+    test(`test ${record.test_case} embed token is accessible`, async ({  }) => {
+      console.log(`##[debug]test ${record.test_case} embed token is accessible`);
+      const tmpEmbedInfo: EmbedInfo = {
+        workspaceId: record.workspace_id,
+        reportId: record.report_id,
+        datasetId: record.dataset_id,
+        pageId: record.page_id,
+        userName: record.user_name,
+        role: record.role
+      };
+      logToConsole('------' + testAccessToken + '-------', isVerboseLogging);
+      const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
+      expect(embedToken).not.toBeUndefined();
+    });
+  }// end for
+);// end test
 
-  /*test(`${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `, async () => {
+// Test for visual errors
+testRecords.forEach((record) => {
+  test(`${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `, async ({ browser }) => {
     console.log(`##[debug]${record.test_case}: test for visual errors, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `);
     const accessToken = await getAccessToken(testSettings);
-    const browser = await chromium.launch({ args: ['--disable-web-security'], headless: false });
-    const page = await browser.newPage();
+    browser = await chromium.launch({ args: ['--disable-web-security'], headless: false });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
     await page.goto('about:blank');
     await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/powerbi-client/2.23.1/powerbi.min.js' });
 
@@ -68,7 +84,7 @@ for (const record of testRecords) {
       userName: record.user_name,
       role: record.role
     };
-    const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testSettings);
+    const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
 
     let reportInfo = {
       reportId: tmpEmbedInfo.reportId,
@@ -90,37 +106,29 @@ for (const record of testRecords) {
         tokenType: models.TokenType.Embed,
         permissions: models.Permissions.Read,
         viewMode: models.ViewMode.View
-      };
-
+      }; 
+            
       const powerbi = new pbi.service.Service(pbi.factories.hpmFactory, pbi.factories.wpmpFactory, pbi.factories.routerFactory);
+      const once = {
+        once: true,
+      };
       let embed = powerbi.embed(document.body, embedConfiguration);
-
-      let renderedPromise = new Promise<void>((resolve) => {
-        embed.off('rendered');
-        embed.on('rendered', async function (event: any) {
-          console.log('Report rendered');
-          resolve(event);
-        });
+      let testErrorPromise = new Promise<void>((resolve) => {
+        document.body.addEventListener('error', async function (event: any) {
+        resolve(event);    
+        },once);        
+      });
+      let testRenderedPromise = new Promise<void>((resolve) => {
+        document.body.addEventListener('rendered', async function (event: any) {
+        resolve();// resolve undefined
+        },once);        
       });
 
-      let errorPromise = new Promise<void>((resolve) => {
-        embed.off('error');
-        embed.on('error', async function (event: any) {
-          console.log('Report error');
-          resolve(event);
-        });
-
-        setTimeout(() => {
-          resolve();
-        }, 10000);
-      });
-
-      // Wait for the report to render or error out
-      let [result1, result2] = await Promise.all([renderedPromise, errorPromise]);
-
-      return result2 === undefined ? "passed" : "failed";
+      // Wait for the report to render or error out using the race condition
+      let result = await Promise.race([testErrorPromise, testRenderedPromise]);
+      return result === undefined ? "passed" : "failed";
     }, reportInfo)
 
     expect(test).toBe("passed");
-  });*/
-}
+    });
+  });

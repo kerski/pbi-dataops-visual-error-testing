@@ -2,7 +2,7 @@ pool:
   vmimage: 'windows-latest'
   
 variables:
-  - group: VisualTests
+  - group: VisualTestsV2
 
 trigger: none
 
@@ -24,11 +24,12 @@ jobs:
         displayName: "Playwright Install"
       - script: |
           set PLAYWRIGHT_JUNIT_OUTPUT_NAME=results.xml
-          npx playwright test --config=playwright.config.v1.ts
+          npx playwright test --config=playwright.service.config.ts
         displayName: "Run Playwright Tests"
         continueOnError: true
         env:
           CLIENT_SECRET: $(CLIENT_SECRET)
+          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: $(PLAYWRIGHT_SERVICE_ACCESS_TOKEN)
       - task: ArchiveFiles@2
         displayName: 'Add playwright-report to Archive'
         inputs:
