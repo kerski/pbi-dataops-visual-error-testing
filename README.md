@@ -12,6 +12,7 @@ Templates for testing Power BI reports for broken visuals using Azure DevOps, Po
     - [3. Update Environment Variables](#3-update-environment-variables)
     - [4. Add Test Cases](#4-add-test-cases)
     - [5. Run the Tests Locally](#5-run-the-tests-locally)
+    - [6. Continuous Integration](./documentation/ci-mode.md)
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
 
