@@ -1,6 +1,7 @@
 # pbi-dataops-visual-error-testing
 
-Templates for testing Power BI reports for broken visuals using Azure DevOps, PowerShell, and Microsoft Playwright. This project provides a robust framework to automate testing, ensuring that Power BI reports render correctly without broken visuals that could impact user experience and data interpretation.
+Templates for testing Power BI reports for broken visuals using PowerShell and Microsoft Playwright. This project provides a robust framework to automate testing, ensuring that Power BI reports render correctly without broken visuals that could impact user experience.
+
 ## Table of Contents
 
 - [pbi-dataops-visual-error-testing](#pbi-dataops-visual-error-testing)
@@ -12,7 +13,6 @@ Templates for testing Power BI reports for broken visuals using Azure DevOps, Po
     - [3. Update Environment Variables](#3-update-environment-variables)
     - [4. Add Test Cases](#4-add-test-cases)
     - [5. Run the Tests Locally](#5-run-the-tests-locally)
-    - [6. Continuous Integration](./documentation/ci-mode.md)
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
 
@@ -52,7 +52,7 @@ Before setting up the project, ensure that the following prerequisites are met:
 ### 1. Copy the Project
 
 1. **Download from Releases**  
-   Navigate to the Releases section of this GitHub repository and download the latest release.
+   Navigate to the Releases section of this GitHub repository and download the <a href="https://github.com/kerski/pbi-dataops-visual-error-testing/releases">latest release</a>.
 
 2. **Unzip the File**  
    Extract the contents of the downloaded release.
@@ -104,22 +104,44 @@ The project consists of several key files and folders:
 
 ### 4. Add Test Cases
 
-1. **Create Test Cases**  
-   Follow the directions provided [here](https://github.com/kerski/get-powerbireportpagesfortesting) to create your test cases. The test cases are defined in CSV format.
+1. **Open Terminal in Visual Studio Code**  
+   In Visual Studio Code, open the terminal by selecting **Terminal > New Terminal**.
+
+2. **Run the generate-test-cases script** Execute the following command: 
+   ```bash
+   \.generate-test-cases.ps1
+3. **Respond to the prompts with which include**:
+   - client_id - The id created by the service principal
+   - client_secret - The secret by the service principal
+   - tenant_id - The Tenant ID for the service principal
+   - dataset_id - The Semantic Model/Dataset GUID to be tested
+   - workspace_id - The Workspace GUID
+   - role_user_name - Your email address/UPN
+4. This will generate a test-case.csv file in the test-cases folder.
+![Test Cases Example](./documentation/images/test-cases.jpg)
+
 
 ### 5. Run the Tests Locally
 
 1. **Open Terminal in Visual Studio Code**  
    In Visual Studio Code, open the terminal by selecting **Terminal > New Terminal**.
 
-2. **Run Playwright Tests**  
+2. **npm install** Execute the following command: npm install.
+   ```bash
+   npm install
+3. **npx playwright install** Execute the following command:        
+   ```bash
+   npx playwright install
+4. **Run Playwright Tests**  
    Execute the following command to run Playwright tests locally:
    ```bash
    npx playwright test --workers=2
-3. The tests will run in the following sequence:
+5. The tests will run in the following sequence:
    - Authenticate the service principal with the Power BI service.
    - Generate an embed token for the report page to be tested.
    - Verify that the rendered report does not contain broken visuals.
+
+![Example of tests running](./documentation/images/Figure3.gif)
 
 ## Reading the Results
 
@@ -129,26 +151,28 @@ The project consists of several key files and folders:
 2. **View the Report**  
    Double-click on `index.html` to open the report in a web browser. This report will show detailed test results.
 
+![Figure 4](./documentation/images/Figure4.png)
+
 ## Broken Visuals
 
 This testing tool will look for various issues in Power BI visuals as described in the official documentation on troubleshooting tile errors. The types of errors detected include:
 
-1. Power BI encountered an unexpected error while loading the model. Please try again later.
+1. Power BI encountered an unexpected error while loading the model.
 
-2. Couldn't retrieve the data model. Please contact the dashboard owner to make sure the data sources and model exist and are accessible.
+2. Couldn't retrieve the data model.
 
 3. You don't have permission to view this tile or open the workbook.
 
 4. Power BI visuals have been disabled by your administrator.
 
-5. Data shapes must contain at least one group or calculation that outputs data. Please contact the dashboard owner.
+5. Data shapes must contain at least one group or calculation that outputs data. 
 
 6. Can't display the data because Power BI can't determine the relationship between two or more fields.
 
 7. The groups in the primary axis and the secondary axis overlap. Groups in the primary axis can't have the same keys as groups in the secondary axis.
 
-8. This visual has exceeded the available resources. Try filtering to decrease the amount of data displayed.
+8. This visual has exceeded the available resources. 
 
-9. We are not able to identify the following fields: {0}. Please update the visual with fields that exist in the semantic model.
+9. We are not able to identify the following fields: {0}.
 
-10. Couldn't retrieve the data for this visual. Please try again later.
+10. Couldn't retrieve the data for this visual. 

@@ -10,3 +10,4 @@ localsettings.json
 /playwright/.cache/
 test-cases/*.csv
 .env
+/release/
