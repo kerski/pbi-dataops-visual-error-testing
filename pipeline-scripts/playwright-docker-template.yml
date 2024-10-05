@@ -1,14 +1,22 @@
 variables:
-  - group: VisualTestsV2
+  - group: VisualTests
 
-trigger: none
+trigger: none  # No CI triggers
+
+schedules:
+  - cron: "0 */6 * * *"
+    displayName: "Run every 6 hours"
+    always: true   # Ensures the pipeline runs even if there are no code changes
+    branches:
+      include:
+        - main      # Replace with your branch name if different
 
 jobs:
 - job : Run_Playwright_Tests
   displayName: 'Run Playwright Tests'
   pool:
     vmImage: ubuntu-latest
-  container: mcr.microsoft.com/playwright:v1.46.1-jammy
+  container: mcr.microsoft.com/playwright:v1.47.2-jammy
   steps:
   - task: NodeTool@0
     inputs:
@@ -21,7 +29,6 @@ jobs:
     continueOnError: true
     env:
       CLIENT_SECRET: $(CLIENT_SECRET)
-      PLAYWRIGHT_SERVICE_ACCESS_TOKEN: $(PLAYWRIGHT_SERVICE_ACCESS_TOKEN)
   - task: PublishTestResults@2
     displayName: 'Publish test results'
     inputs:
@@ -31,10 +38,4 @@ jobs:
       mergeTestResults: false
       failTaskOnFailedTests: true
       testRunTitle: 'Power BI Tests'
-    condition: succeededOrFailed()
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: playwright-report
-      artifact: playwright-report
-      publishLocation: 'pipeline'
     condition: succeededOrFailed()

@@ -1,54 +1,34 @@
-pool:
-  vmimage: 'windows-latest'
-  
 variables:
-  - group: VisualTestsV2
+  - group: VisualTests
 
 trigger: none
 
 jobs:
-  - job: test
-    displayName: Run Playwright Tests
-    steps:
-      - download: none
-      - checkout: self
-      - task: NodeTool@0
-        displayName: 'Use Node version 16'
-        inputs:
-          versionSpec: 16.x
-      - script: |
-          npm ci
-        displayName: "NPM Install"
-      - script: |
-          npx playwright install --with-deps chromium
-        displayName: "Playwright Install"
-      - script: |
-          set PLAYWRIGHT_JUNIT_OUTPUT_NAME=results.xml
-          npx playwright test --config=playwright.service.config.ts
-        displayName: "Run Playwright Tests"
-        continueOnError: true
-        env:
-          CLIENT_SECRET: $(CLIENT_SECRET)
-          PLAYWRIGHT_SERVICE_ACCESS_TOKEN: $(PLAYWRIGHT_SERVICE_ACCESS_TOKEN)
-      - task: ArchiveFiles@2
-        displayName: 'Add playwright-report to Archive'
-        inputs:
-          rootFolderOrFile: '$(Pipeline.Workspace)/s/playwright-report/'
-          archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
-      - task: ArchiveFiles@2
-        displayName: 'Add test-results to Archive'
-        inputs:
-          rootFolderOrFile: '$(Pipeline.Workspace)/s/test-results/'
-          archiveFile: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
-          replaceExistingArchive: false
-      - task: PublishPipelineArtifact@1
-        displayName: 'Publish Pipeline Artifacts'
-        inputs:
-          targetPath: '$(Agent.TempDirectory)/$(Build.BuildId)_$(System.JobAttempt)$(System.StageAttempt).zip'
-          artifact: pipeline-artifacts
-      - task: PublishTestResults@2
-        inputs:
-          testResultsFormat: 'JUnit'
-          testResultsFiles: '$(Pipeline.Workspace)/s/test-results/results.xml'
-          testRunTitle: 'Playwright ADO Demo - $(System.StageName)'
-        displayName: 'Publish Test Results'
+- job : Run_Playwright_Tests
+  displayName: 'Run Playwright Tests'
+  pool:
+    vmImage: ubuntu-latest
+  container: mcr.microsoft.com/playwright:v1.47.2-jammy
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '18'
+    displayName: 'Install Node.js'
+  - script: npm ci
+    displayName: 'npm ci'
+  - script: xvfb-run npx playwright test --config=playwright.service.config.ts
+    displayName: "Run Playwright Tests"
+    continueOnError: true
+    env:
+      CLIENT_SECRET: $(CLIENT_SECRET)
+      PLAYWRIGHT_SERVICE_ACCESS_TOKEN: $(PLAYWRIGHT_SERVICE_ACCESS_TOKEN)
+  - task: PublishTestResults@2
+    displayName: 'Publish test results'
+    inputs:
+      searchFolder: 'test-results'
+      testResultsFormat: 'JUnit'
+      testResultsFiles: 'results.xml'
+      mergeTestResults: false
+      failTaskOnFailedTests: true
+      testRunTitle: 'Power BI Tests'
+    condition: succeededOrFailed()
