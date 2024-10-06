@@ -4,6 +4,18 @@ You can automate the testing for broken visuals using Azure DevOps. Please see t
 
 ## Table of Contents
 
+- [Continuous Integration](#continuous-integration)
+  - [Table of Contents](#table-of-contents)
+  - [High-Level Process](#high-level-process)
+  - [Prerequisites](#prerequisites)
+  - [Instructions](#instructions)
+    - [Clone Repo](#clone-repo)
+    - [Local Test Results](#local-test-results)
+    - [Create the Variable Group](#create-the-variable-group)
+    - [Create the Pipeline](#create-the-pipeline)
+  - [Monitoring](#monitoring)
+
+
 ## High-Level Process
 
 ![Figure 1](./images/CI-Figure1.png)  

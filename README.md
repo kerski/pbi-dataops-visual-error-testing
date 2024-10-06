@@ -15,6 +15,7 @@ Templates for testing Power BI reports for broken visuals using PowerShell and M
     - [5. Run the Tests Locally](#5-run-the-tests-locally)
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
+  - [Continuous Integration](#continuous-integration)
 
 ## Prerequisites
 
@@ -176,3 +177,7 @@ This testing tool will look for various issues in Power BI visuals as described 
 9. We are not able to identify the following fields: {0}.
 
 10. Couldn't retrieve the data for this visual. 
+
+## Continuous Integration
+
+To automate these tests in Azure DevOps please see these [instructions](./documentation/ci-mode.md).
