@@ -49,7 +49,7 @@
     "window-post-message-proxy": "^0.2.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.46.1",
+    "@playwright/test": "^1.47.2",
     "@types/node": "^20.13.0"
   },
   "keywords": [],
