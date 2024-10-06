@@ -180,4 +180,4 @@ This testing tool will look for various issues in Power BI visuals as described 
 
 ## Continuous Integration
 
-To automate these tests in Azure DevOps please see these [instructions](./documentation/ci-mode.md).
+To automate these tests in Azure DevOps please see these [instructions](/documentation/ci-mode.md)
