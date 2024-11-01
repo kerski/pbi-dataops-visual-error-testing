@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power BI Region, Workspaces, Reports, and Bookmarks</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet"> <!-- Bootstrap CSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script> <!-- Import uuid -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script> <!-- Import pako -->
+    <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.17.1/dist/powerbi.js"></script> <!-- Import powerbi-client -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script> <!-- Bootstrap JS -->
+    <style>
+        #report-container {
+            margin-top: 20px;
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+<body class="container py-4">
+    <div id="message" class="alert alert-info d-none" role="alert" aria-live="polite"></div>
+    
+    <h1 class="mb-4">Generate Test Cases</h1>
+
+    <div class="mb-3">
+        <label for="load-workspaces-btn">Step 1 - Click the Load Workspaces Button</label>
+        <button id="load-workspaces-btn" class="btn btn-primary w-100" onclick="getWorkspaces()" aria-controls="workspaces">Load Workspaces</button>
+    </div>
+    
+    <div class="mb-3">
+        <label for="workspaces">Step 2 - Select Workspace:</label>
+        <select id="workspaces" class="form-select" aria-labelledby="workspaces"></select>
+    </div>
+
+    <div class="mb-3">
+        <label for="reports">Step 3 - Select Report:</label>
+        <select id="reports" class="form-select" aria-labelledby="reports"></select>
+    </div>
+
+    <div class="mb-3">
+        <button id="export-btn" class="btn btn-success w-100" onclick="saveTestCases()" disabled aria-disabled="true" aria-controls="report-container">Step 4 - Save Test Cases</button>
+    </div>
+
+    <div id="report-container" class="border" role="region" aria-live="polite" aria-label="Power BI Report"></div>
+
+    <script>
+        // Global state object to track important information
+        const appState = {
+            workspaceId: null,
+            reportName: null,
+            reportId: null,
+            pages: null,
+            datasetId: null,
+            roles: [],
+            userPrincipalName: '', // You can assign this value after user authentication
+            bookmarks: []
+        };
+
+        // Function to clear appState based on the isWorkspace parameter
+        function clearAppState(isWorkspace) {
+            if (isWorkspace) {
+                appState.workspaceId = null;
+                appState.reportName = null;
+                appState.reportId = null;
+                appState.datasetId = null;
+                appState.pages = null;
+                appState.roles = [];
+                appState.bookmarks = [];
+            } else {
+                appState.reportId = null;
+                appState.reportName = null;
+                appState.pages = null;
+                appState.datasetId = null;
+                appState.roles = [];
+                appState.bookmarks = [];
+            }
+        }  
+
+        // Function to update the message display
+        function updateMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = message;
+            messageDiv.className = `alert alert-${type}`; // Use Bootstrap's alert classes
+            messageDiv.classList.remove('d-none'); // Ensure the message is visible
+        }
+
+        // Function to enable or disable the export button
+        function toggleExportButton(enable) {
+            const exportBtn = document.getElementById('export-btn');
+            exportBtn.disabled = !enable; // Enable or disable button based on the parameter
+        }
+
+        // Function to get workspaces
+        async function getWorkspaces() {
+            const response = await getAccessToken();     
+            const apiUrl = response.apiUrl;
+            // Store the userPrincipalName in appState
+            appState.userPrincipalName = response.effectiveUserName;
+            const accessToken = response.accessToken;
+            const workspaces = await fetch(`${apiUrl}/v1.0/myorg/groups`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());
+
+            const workspaceSelect = document.getElementById('workspaces');
+            workspaceSelect.innerHTML = '<option>Select a Workspace</option>';
+            workspaces.value.forEach(workspace => {
+                const option = document.createElement('option');
+                option.value = workspace.id;
+                option.text = workspace.name;
+                workspaceSelect.appendChild(option);
+            });
+
+            // Remove any existing event listener before adding a new one
+            workspaceSelect.removeEventListener('change', handleWorkspaceChange);
+            workspaceSelect.addEventListener('change', handleWorkspaceChange);
+        }
+
+        // Handler function for workspace selection
+        async function handleWorkspaceChange() {
+            clearAppState(true); // Clear appState except userPrincipalName
+            toggleExportButton(false); // Disable export button on workspace change
+            const selectedWorkspaceId = this.value;
+            appState.workspaceId = selectedWorkspaceId; // Store the selected workspace ID
+            const tokenResponse = await getAccessToken();
+            const apiUrl = tokenResponse.apiUrl;
+            const accessToken = tokenResponse.accessToken;
+
+            const reports = await fetch(`${apiUrl}/v1.0/myorg/groups/${selectedWorkspaceId}/reports`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());
+
+            const reportSelect = document.getElementById('reports');
+            reportSelect.innerHTML = '<option>Select a Report</option>';
+            reports.value.forEach(report => {
+                const option = document.createElement('option');
+                option.value = report.id;
+                option.text = report.name;
+                reportSelect.appendChild(option);
+            });
+
+            // Remove any existing event listener before adding a new one
+            reportSelect.removeEventListener('change', handleReportChange);
+            reportSelect.addEventListener('change', handleReportChange);
+        }
+
+        // Handler function for report selection
+        async function handleReportChange() {
+            clearAppState(false); // Clear appState except userPrincipalName and workspace
+            toggleExportButton(false); // Disable export button on report change
+            const selectedReportId = this.value;
+            appState.reportId = selectedReportId; // Store the selected report ID
+            const selectedWorkspaceId = document.getElementById('workspaces').value;
+            appState.reportName = document.getElementById('reports').selectedOptions[0].text; // Store the selected report name
+            const tokenResponse = await getAccessToken();
+            const apiUrl = tokenResponse.apiUrl;
+            const accessToken = tokenResponse.accessToken;
+
+            getReportDetails(selectedReportId, selectedWorkspaceId, accessToken, apiUrl);
+        }
+
+        // Function to get report details
+        async function getReportDetails(reportId, workspaceId, accessToken, apiUrl) {
+            // Get dataset ID associated with the report
+            const reportResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());
+
+            appState.datasetId = reportResponse.datasetId; // Store dataset ID
+            const datasetWorkspaceId = reportResponse.datasetWorkspaceId;
+
+            const datasetResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}/datasets/${appState.datasetId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());
+
+            const datasetWSResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());            
+
+            // Dataset Name
+            const datasetName = datasetResponse.name;
+            const datasetWorkspaceName = datasetWSResponse.name;
+
+            // Get pages for the report
+            const pagesResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/pages`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }).then(res => res.json());
+
+            appState.pages = pagesResponse.value; // Store pages in appState
+
+            // Fetch request with workspace and report names
+            updateMessage(`<strong>Checking for RLS/OLS...</strong>`);
+            const response = await fetch(`/executeScript?workspaceName=${datasetWorkspaceName}&datasetName=${datasetName}`);
+            let roles = [];
+            try {
+                updateMessage(`<strong>Checking for RLS/OLS complete</strong>`);
+                const result = await response.json();
+                // If roles exist, use the first role and universal provider name from the current user
+                roles = result.roles || [];
+                appState.roles = roles; // Store roles in appState
+            } catch (error) {
+                updateMessage(`<strong>Failed to get RLS/OLS information.</strong>`,'danger');
+                console.error('Error:', error);
+            } // end try
+
+            updateMessage(`<strong>Checking for Bookmarks...</strong>`);
+            // Embed the report
+            try {
+                const universalProviderName = appState.userPrincipalName; // Use userPrincipalName from appState
+                const embedUrl = reportResponse.embedUrl; // Use report's embed URL
+                // Get embed token
+                const embedToken = await getEmbedToken(apiUrl, workspaceId, reportId, accessToken, roles[0], appState.datasetId, universalProviderName);
+                // Now embed the report
+                await embedReport(embedUrl, reportResponse.id, embedToken); // Await for the embed process to complete
+                toggleExportButton(true); // Enable the export button after fetching bookmarks
+                updateMessage(`<strong>Checking for Bookmarks Completed. Ready to Save Test Cases</strong>`);
+            } catch (error) {
+                updateMessage(`<strong>Failed to embed report and get bookmarks.</strong>`, 'danger');
+                console.error('Error:', error);
+            } // end try
+        } // get report details
+
+        // Function to get embed token
+        async function getEmbedToken(apiUrl, workspaceId, reportId, accessToken, role, datasetId, userName) {
+            // Define the URL for the embed token
+            const url = `${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/generatetoken`;
+
+            // Define the headers for the request
+            const headers = {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': "Bearer " + accessToken
+            };
+
+            // Default to no RLS
+            let jsonBody = {
+                "accessLevel": "View"
+            };
+
+            // Check if the embedInfo role is defined and if we need to include RLS testing
+            if (role !== undefined) {
+                // Define the body for the RLS request
+                jsonBody = {
+                    "accessLevel": "View",
+                    "identities": [
+                        {
+                            "username": userName,
+                            "roles": [role],
+                            "datasets": [datasetId]
+                        }
+                    ]
+                };
+            }
+
+            try {
+                // Acquire an embed token
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(jsonBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to get embed token: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                return data.token;
+            } catch (error) {
+                console.error(`Failed to get embed token: ${error.message}`);
+            }
+        }
+
+        // Function to embed the Power BI report using powerbi-client
+        async function embedReport(embedUrl, reportId, embedToken) {
+            const models = window['powerbi-client'].models;
+            
+            // Report configuration
+            const config = {
+                type: 'report',
+                id: reportId,
+                embedUrl: embedUrl,
+                accessToken: embedToken,
+                tokenType: models.TokenType.Embed,
+                permissions: models.Permissions.Read,
+                viewMode: models.ViewMode.View                
+            };
+
+            // Get the report container
+            const reportContainer = document.getElementById('report-container');
+
+            // Embed the report
+            const powerbi = window['powerbi'];
+            powerbi.reset(reportContainer); // Reset the container in case there's already an embedded report
+            let embed = powerbi.embed(reportContainer, config);
+
+            // Promise to handle 'error' event
+            const testErrorPromise = new Promise((resolve) => {
+                reportContainer.addEventListener('error', async function (event) {
+                    console.log(event);
+                    resolve("errored"); // resolve undefined
+                }, { once: true }); // The 'once' option ensures the event listener is removed after firing once
+            });
+
+            // Promise to handle 'rendered' event
+            const testRenderedPromise = new Promise((resolve) => {
+                reportContainer.addEventListener('rendered', async function (event) {
+                    resolve("rendered"); // resolve "rendered"
+                }, { once: true }); // The 'once' option ensures the event listener is removed after firing once
+            });
+
+            try {
+                const result = await Promise.race([testErrorPromise, testRenderedPromise]);
+                console.log(result);
+                // Get a list of bookmarks
+                let bookmarks = await embed.bookmarksManager.getBookmarks();
+
+                let bookmarkState = [];
+                for(let i = 0; i < bookmarks.length; i++) {
+                    if(bookmarks[i].children){
+                        for(let j = 0; j < bookmarks[i].children.length; j++) {
+                            tempState = bookmarks[i].children[j].state;
+                            bookmarkState.push({name: bookmarks[i].children[j].name, displayName: bookmarks[i].children[j].displayName, state: tempState});
+                        }//end for   
+                    }
+                    else{
+                        bookmarkState.push({name: bookmarks[i].name, displayName: bookmarks[i].displayName, state: bookmarks[i].state});
+                    }
+                    // end if
+                }// end for
+
+                // Decode and unzip data
+                for(let i = 0; i < bookmarkState.length; i++) {
+                    const gezipedData = atob(bookmarkState[i].state);
+                    const gzipedDataArray = Uint8Array.from(gezipedData, c => c.charCodeAt(0));
+                    const ungzipedDataArray = pako.ungzip(gzipedDataArray);
+                    bookmarkState[i].jsonState = JSON.parse(new TextDecoder().decode(ungzipedDataArray));
+                }   
+
+                // Map bookmark to active sections
+                for(let i = 0; i < appState.pages.length; i++){
+                    let bookmarkPages = [];
+                    for(let j = 0; j < bookmarkState.length; j++){
+                        if(appState.pages[i].name == bookmarkState[j].jsonState.explorationState.activeSection){
+                            bookmarkPages.push(bookmarkState[j]);
+                        }
+                    }//end iterating through bookmarks
+                    appState.pages[i].bookmarks = bookmarkPages;
+                }// end map bookmark to active sections
+                appState.bookmarks = bookmarkState; // Store bookmarks in appState
+            } catch (error) {
+                console.error('An error occurred:', error);
+            }
+        }
+
+        // Function to get access token
+        async function getAccessToken() {
+            try {
+                updateMessage(`<strong>Loading...</strong>`);
+                const response = await fetch('/getToken');
+                const data = await response.json();
+                if (data.accessToken) {
+                    updateMessage(`<strong>Loaded Workspaces</strong>`);
+                    return data;
+                } else {
+                    updateMessage(`<strong>Error:</strong> ${data.error}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateMessage('Failed to fetch token.', 'danger');
+            }
+        }
+
+        // Function to export appState to CSV
+        function exportCSV() {
+            const rows = [];
+            let fileState = 0;
+            // Add header row
+            const header = ['"test_case"','"workspace_id"', '"report_id"', '"report_name"', '"page_id"', '"page_name"'];
+            if (appState.roles.length > 0) {
+                header.push('"dataset_id"', '"role"', '"user_name"');
+                fileState += 1;
+            }
+            if (appState.bookmarks.length > 0) {
+                header.push('"bookmark_id"','"bookmark_name"');
+                fileState += 2;
+            }
+            rows.push(header.join(','));
+
+            // Iterate through pages to create rows
+            const { workspaceId, reportId, reportName, datasetId, roles, userPrincipalName, bookmarks, pages } = appState;
+
+            if (pages && Array.isArray(pages)) {
+                pages.forEach(page => {
+                    // Gerenate test case for each page and role combination
+                    if(fileState == 3){
+                        roles.forEach(role =>{
+                            // Add role and page
+                            rows.push([
+                                    '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                    '"' + appState.workspaceId + '"', 
+                                    '"' + appState.reportId + '"', 
+                                    '"' + appState.reportName + '"', 
+                                    '"' + page.name + '"', 
+                                    '"' + page.displayName + '"', 
+                                    '"' + appState.datasetId + '"', 
+                                    '"' + role + '"', 
+                                    '"' + userPrincipalName + '"',
+                                    '""','""'
+                                ].join(','));                            
+                            page.bookmarks.forEach(bookmark =>{
+                                // add role, page, and bookmark
+                                rows.push([
+                                    '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                    '"' + appState.workspaceId + '"', 
+                                    '"' + appState.reportId + '"',
+                                    '"' + appState.reportName + '"', 
+                                    '"' + page.name + '"', 
+                                    '"' + page.displayName + '"', 
+                                    '"' + appState.datasetId + '"', 
+                                    '"' + role + '"', 
+                                    '"' + userPrincipalName + '"',
+                                    '"' + bookmark.name + '"',
+                                    '"' + bookmark.displayName + '"'
+                                ].join(','));
+                            });// end bookmarks
+                        });// end roles
+                    }
+                    else if(fileState == 2){
+                        // Add page
+                        rows.push([
+                                '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                '"' + appState.workspaceId + '"', 
+                                '"' + appState.reportId + '"',
+                                '"' + appState.reportName + '"',  
+                                '"' + page.name + '"', 
+                                '"' + page.displayName + '"', 
+                                '""','""'
+                            ].join(','));                            
+                        // Iterate through bookmarks
+                        page.bookmarks.forEach(bookmark =>{
+                            // add page and bookmark
+                            rows.push([
+                                    '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                    '"' + appState.workspaceId + '"', 
+                                    '"' + appState.reportId + '"', 
+                                    '"' + appState.reportName + '"',  
+                                    '"' + page.name + '"', 
+                                    '"' + page.displayName + '"',
+                                    '"' + bookmark.name + '"',
+                                    '"' + bookmark.displayName + '"'
+                                ].join(','));
+                            });// end pages
+                    }
+                    else if(fileState == 1){
+                        appState.roles.forEach(role =>{
+                            // Add role and page
+                            rows.push([
+                                    '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                    '"' + appState.workspaceId + '"', 
+                                    '"' + appState.reportId + '"',
+                                    '"' + appState.reportName + '"',   
+                                    '"' + page.name + '"', 
+                                    '"' + page.displayName + '"',
+                                    '"' + appState.datasetId + '"', 
+                                    '"' + role + '"', 
+                                    '"' + userPrincipalName + '"'
+                                ].join(','));  
+                            });// end pages
+                    }                    
+                    else{ // no role or bookmarks
+                        rows.push([
+                                '"' + uuid.v4() + '"', // Generate a unique test case ID
+                                '"' + appState.workspaceId + '"', 
+                                '"' + appState.reportId + '"',
+                                '"' + appState.reportName + '"', 
+                                '"' + page.name + '"',
+                                '"' + page.displayName + '"'
+                            ].join(','));  
+                    }// end roles.length check
+                });//end pages foreach
+            }//end pages
+
+            // Create CSV content
+            const csvContent = rows.join('\n');
+            console.log(csvContent);
+            // Create a link element to download the CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            return blob;
+        }
+
+         // Function to upload generated CSV file to the server
+        async function saveTestCases() {
+            const csvContent = exportCSV(); // Get the generated CSV content
+            const blob = new Blob([csvContent], { type: 'text/csv' }); // Create a Blob from the CSV content
+
+            const formData = new FormData();
+            formData.append('testFile', blob, `${appState.reportName}.csv`); // Append Blob with a filename to FormData
+
+            try {
+                const response = await fetch('/uploadCsv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const jsonResponse = await response.json();
+                    updateMessage(`<strong>Test Cases saved successfully</strong>`, 'success');
+                } else {
+                    const errorResponse = await response.json();
+                    updateMessage(`<strong>Error:</strong> ${errorResponse.error}`, 'danger');
+                }
+            } catch (error) {
+                updateMessage('Error uploading CSV', 'danger');
+            }
+        };        
+
+    </script>
+</body>
+</html>

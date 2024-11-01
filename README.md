@@ -12,6 +12,8 @@ Templates for testing Power BI reports for broken visuals using PowerShell and M
     - [2. Anatomy of the Project](#2-anatomy-of-the-project)
     - [3. Update Environment Variables](#3-update-environment-variables)
     - [4. Add Test Cases](#4-add-test-cases)
+      - [PowerShell Approach](#powershell-approach)
+      - [User Interface Approach](#user-interface-approach)
     - [5. Run the Tests Locally](#5-run-the-tests-locally)
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
@@ -100,10 +102,16 @@ The project consists of several key files and folders:
      Set this to the Tenant ID obtained from the prerequisites.
    - `ENVIRONMENT=""`  
      Set this to identify the tenant type (public or sovereign) where your Power BI service is located. Valid values are: Public, Germany, China, USGov, USGovHigh, or USGovDoD.
+   - `EFFECTIVE_USERNAME=""`  
+     Set this to a User Principal Name you want to use for RLS testing. This account is used for impersonation when rendering RLS-based reports.
 
 3. **Save the `.env` file** after updating all the necessary environment variables.
 
 ### 4. Add Test Cases
+
+For generating test cases there are two approaches. The first approach is the PowerShell approach where you generate the test cases based on a PowerShell module.  This approach is helpful you understand PowerShell and if you are looking to generate test cases automatically in build pipelines.  The second approach is the User Interface (UI) approach 
+
+#### PowerShell Approach
 
 1. **Open Terminal in Visual Studio Code**  
    In Visual Studio Code, open the terminal by selecting **Terminal > New Terminal**.
@@ -121,6 +129,29 @@ The project consists of several key files and folders:
 4. This will generate a test-case.csv file in the test-cases folder.
 ![Test Cases Example](./documentation/images/test-cases.jpg)
 
+#### User Interface Approach
+
+1.  **Open Terminal in Visual Studio Code**
+   In Visual Studio Code, open the terminal by selecting **Terminal > New Terminal**.
+2.  **Navigate to test-generation folder** 
+      Execute the following command:
+      ```bash
+      cd test-generation
+3.  **Install application** 
+      Execute the following command:
+      ```bash
+      npm install
+4.  **Start application** 
+      Execute the following command:
+      ```bash
+      node app.js
+5.  **Open Browser** 
+    Open your browser of choice and enter "http://localhost:3000" in the address bar. 
+
+   ![UI Test Generation](./documentation/images/ui-test-generation.png)
+
+6.  **Generate Test**
+    Follow the instructions on the page to generate tests for a specific report.
 
 ### 5. Run the Tests Locally
 

@@ -1,10 +1,8 @@
 // Importing required modules for Auth Token
-import { ConfidentialClientApplication } from '@azure/msal-node';
+import { ConfidentialClientApplication } from '@azure/msal-node'
 import axios from 'axios';
 
-/**
- * Interface for API endpoints.
- */
+// Interface for API endpoints
 export interface Endpoints {
   apiPrefix: string;
   webPrefix: string;
@@ -13,21 +11,17 @@ export interface Endpoints {
   loginUrl: string;
 }
 
-/**
- * Interface for embed information.
- */
+// Interface for API endpoints
 export interface EmbedInfo {
   workspaceId: string;
   reportId: string;
+  bookmarkId?: string;
   pageId: string;
   userName: string;
   datasetId: string;
   role: string;
 }
 
-/**
- * Interface for test settings.
- */
 export interface TestSettings {
   clientId: string;
   clientSecret: string;
@@ -36,9 +30,7 @@ export interface TestSettings {
   testCases: string;
 }
 
-/**
- * Enum for different environments.
- */
+// Enum for different environments
 export enum Environment {
   Public = "Public",
   Germany = "Germany",
@@ -48,12 +40,7 @@ export enum Environment {
   USGovDoD = "USGovDoD"
 }
 
-/**
- * Function to get API endpoints based on the environment.
- *
- * @param {Environment} environment - The environment for which to get the API endpoints.
- * @returns {Endpoints} The API endpoints for the specified environment.
- */
+// Function to get API endpoints based on the environment
 export function getAPIEndpoints(environment: Environment): Endpoints {
   // Default endpoints
   let endpoints: Endpoints = {
@@ -108,16 +95,11 @@ export function getAPIEndpoints(environment: Environment): Endpoints {
   }
 
   // Return the endpoints
-  return endpoints;
+  return endpoints
 }
 
-/**
- * Function to get access token.
- *
- * @param {TestSettings} testSettings - The test settings containing client ID, client secret, tenant ID, and environment.
- * @returns {Promise<string | undefined>} The access token or undefined if the token acquisition fails.
- */
-export async function getAccessToken(testSettings: TestSettings): Promise<string | undefined> {
+// Function to get access token
+export async function getAccessToken(testSettings:TestSettings): Promise<string | undefined> {
   // Get API endpoints for the environment
   const endpoint = getAPIEndpoints(testSettings.environment as Environment);
 
@@ -144,14 +126,7 @@ export async function getAccessToken(testSettings: TestSettings): Promise<string
   }
 }
 
-/**
- * Function to get embed token.
- *
- * @param {EmbedInfo} embedInfo - The embed information containing workspace ID, report ID, page ID, user name, dataset ID, and role.
- * @param {Endpoints} endpoint - The API endpoints.
- * @param {any} accessToken - The access token.
- * @returns {Promise<string | undefined>} The embed token or undefined if the token acquisition fails.
- */
+// Function to get embed token
 export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, accessToken: any): Promise<string | undefined> {
   // Define the URL for the embed token
   const url = `${endpoint.apiPrefix}/v1.0/myorg/groups/${embedInfo.workspaceId}/reports/${embedInfo.reportId}/generatetoken`;
@@ -161,13 +136,13 @@ export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, a
     'Authorization': "Bearer " + accessToken
   };
 
-  // Default to no RLS
+  // default to now RLS
   let jsonBody = {
     "accessLevel": "View"
   };
 
   // Check if the embedInfo role is defined and if we need to include RLS testing
-  if (embedInfo.role !== undefined && embedInfo.datasetId !== '') {
+  if(embedInfo.role !== undefined && embedInfo.datasetId !== '') {
     // Define the body for the RLS request
     jsonBody = {
       "accessLevel": "View",
@@ -183,7 +158,7 @@ export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, a
         }
       ]
     };
-  } // end embedInfo check
+  }// end embedInfo check
 
   try {
     // Acquire an embed token
