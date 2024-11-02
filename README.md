@@ -18,6 +18,7 @@ Templates for testing Power BI reports for broken visuals using PowerShell and M
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
   - [Continuous Integration](#continuous-integration)
+  - [Limitations](#limitations)
 
 ## Prerequisites
 
@@ -212,3 +213,7 @@ This testing tool will look for various issues in Power BI visuals as described 
 ## Continuous Integration
 
 To automate these tests in Azure DevOps please see these [instructions](/documentation/ci-mode.md)
+
+## Limitations
+
+1. Testing reports that use [composite models](https://learn.microsoft.com/en-us/power-bi/transform-model/desktop-composite-models) does not work due to a limitation with Microsoft's [PowerBI-JavaScript](https://github.com/microsoft/PowerBI-JavaScript) library.  Trying to test reports that use composite models will always indicate a broken visual with this tool.
