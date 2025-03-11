@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet"> <!-- Bootstrap CSS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script> <!-- Import uuid -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script> <!-- Import pako -->
-    <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.17.1/dist/powerbi.js"></script> <!-- Import powerbi-client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/powerbi-client/2.23.7/powerbi.min.js"></script> <!-- Import powerbi-client -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script> <!-- Bootstrap JS -->
     <style>
         #report-container {
@@ -47,10 +47,11 @@
         // Global state object to track important information
         const appState = {
             workspaceId: null,
+            reportType: null,            
             reportName: null,
             reportId: null,
             pages: null,
-            datasetId: null,
+            datasetIds: [],
             roles: [],
             userPrincipalName: '', // You can assign this value after user authentication
             bookmarks: []
@@ -60,19 +61,23 @@
         function clearAppState(isWorkspace) {
             if (isWorkspace) {
                 appState.workspaceId = null;
+                appState.reportType = null;
                 appState.reportName = null;
                 appState.reportId = null;
-                appState.datasetId = null;
+                appState.datasetIds = [];
                 appState.pages = null;
                 appState.roles = [];
                 appState.bookmarks = [];
+                appState.rdlReportParameters = [];
             } else {
+                appState.reportType = null;
                 appState.reportId = null;
                 appState.reportName = null;
                 appState.pages = null;
-                appState.datasetId = null;
+                appState.datasetIds = [];
                 appState.roles = [];
                 appState.bookmarks = [];
+                appState.rdlReportParameters = [];
             }
         }  
 
@@ -162,7 +167,7 @@
             const accessToken = tokenResponse.accessToken;
 
             getReportDetails(selectedReportId, selectedWorkspaceId, accessToken, apiUrl);
-        }
+        }     
 
         // Function to get report details
         async function getReportDetails(reportId, workspaceId, accessToken, apiUrl) {
@@ -174,71 +179,183 @@
                 }
             }).then(res => res.json());
 
-            appState.datasetId = reportResponse.datasetId; // Store dataset ID
-            const datasetWorkspaceId = reportResponse.datasetWorkspaceId;
-
-            const datasetResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}/datasets/${appState.datasetId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            }).then(res => res.json());
-
-            const datasetWSResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            }).then(res => res.json());            
-
-            // Dataset Name
-            const datasetName = datasetResponse.name;
-            const datasetWorkspaceName = datasetWSResponse.name;
-
-            // Get pages for the report
-            const pagesResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/pages`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            }).then(res => res.json());
-
-            appState.pages = pagesResponse.value; // Store pages in appState
-
-            // Fetch request with workspace and report names
-            updateMessage(`<strong>Checking for RLS/OLS...</strong>`);
-            const response = await fetch(`/executeScript?workspaceName=${datasetWorkspaceName}&datasetName=${datasetName}`);
+            // Define roles if RLS/OLS is enabled
             let roles = [];
-            try {
-                updateMessage(`<strong>Checking for RLS/OLS complete</strong>`);
-                const result = await response.json();
-                // If roles exist, use the first role and universal provider name from the current user
-                roles = result.roles || [];
-                appState.roles = roles; // Store roles in appState
-            } catch (error) {
-                updateMessage(`<strong>Failed to get RLS/OLS information.</strong>`,'danger');
-                console.error('Error:', error);
-            } // end try
+            // Define dataset ids for Paginated Reports
+            let datasetIds = [];
+            const reportType = reportResponse.reportType;
+            if(reportType != 'PowerBIReport') { // Paginated Report
+                appState.reportType = reportType; // Store report type in appState   
+                
+                // Get Datasources for the report
+                const datasourcesResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/datasources`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                }).then(res => res.json());  
+                
+                // Extract DatasetIds
+                const extractDatasetIds = (dataSources) => {
+                    return dataSources
+                        .filter(ds => ds.connectionDetails.server.includes('pbiazure://api.powerbi'))
+                        .map(ds => {
+                        const match = ds.connectionDetails.database.match(/sobe_wowvirtualserver-(.+)/);
+                        return match ? { id: match[1], "xmlaPermissions": "ReadOnly" } : null;
+                        })
+                        .filter(Boolean); // Removes null values
+                };   
 
-            updateMessage(`<strong>Checking for Bookmarks...</strong>`);
+                // Get RDL for the report
+                const rdlResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/Export`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                // Convert the response to text
+                const rdlText = await rdlResponse.text();
+
+                // Parse the text as XML
+                const parser = new DOMParser();
+                const rdlXml = parser.parseFromString(rdlText, "application/xml");
+
+                // Extract the ReportParameters that do not contain a <Hidden>true</Hidden> setting
+                const reportParameters = rdlXml.getElementsByTagName('ReportParameter');
+                const visibleReportParameters = [];
+
+                for (let i = 0; i < reportParameters.length; i++) {
+                    const hiddenElements = reportParameters[i].getElementsByTagName('Hidden');
+                    const isHidden = hiddenElements.length > 0 && hiddenElements[0].textContent === 'true';
+
+                    if (!isHidden) {
+                        const nameElement = reportParameters[i].getAttribute('Name');
+                        const name = nameElement ? nameElement : null;
+                        const value = null; // Default value to null
+                        visibleReportParameters.push({ name, value });
+                    }
+                }
+
+                // Store report parameters in appState
+                appState.rdlReportParameters = visibleReportParameters;
+
+                // Extract dataset ids
+                datasetIds = extractDatasetIds(datasourcesResponse.value);
+                appState.datasetIds = datasetIds; // Store dataset IDs
+            }
+            else{
+                appState.reportType = reportType; // Store report type in appState
+                appState.datasetIds.push(reportResponse.datasetId); // Store dataset ID
+                const datasetWorkspaceId = reportResponse.datasetWorkspaceId;
+
+                const datasetResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}/datasets/${appState.datasetIds[0]}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                }).then(res => res.json());
+
+                const datasetWSResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${datasetWorkspaceId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                }).then(res => res.json());            
+
+                // Dataset Name
+                const datasetName = datasetResponse.name;
+                const datasetWorkspaceName = datasetWSResponse.name;
+
+                // Get pages for the report
+                const pagesResponse = await fetch(`${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/pages`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                }).then(res => res.json());
+
+                appState.pages = pagesResponse.value; // Store pages in appState
+
+                // Fetch request with workspace and report names
+                updateMessage(`<strong>Checking for RLS/OLS...</strong>`);
+                const response = await fetch(`/executeScript?workspaceName=${datasetWorkspaceName}&datasetName=${datasetName}`);
+                try {
+                    updateMessage(`<strong>Checking for RLS/OLS complete</strong>`);
+                    const result = await response.json();
+                    // If roles exist, use the first role and universal provider name from the current user
+                    roles = result.roles || [];
+                    appState.roles = roles; // Store roles in appState
+                } catch (error) {
+                    updateMessage(`<strong>Failed to get RLS/OLS information.</strong>`,'danger');
+                    console.error('Error:', error);
+                } // end try
+
+                updateMessage(`<strong>Checking for Bookmarks...</strong>`);
+            } // end if
+            
             // Embed the report
             try {
                 const universalProviderName = appState.userPrincipalName; // Use userPrincipalName from appState
                 const embedUrl = reportResponse.embedUrl; // Use report's embed URL
+                let embedToken = null; // Initialize embedToken
                 // Get embed token
-                const embedToken = await getEmbedToken(apiUrl, workspaceId, reportId, accessToken, roles[0], appState.datasetId, universalProviderName);
+                if(reportType === 'PowerBIReport'){
+                    embedToken = await getEmbedTokenForPBIReport(apiUrl, workspaceId, reportId, accessToken, roles[0], appState.datasetIds[0], universalProviderName);
+                }
+                else{
+                    embedToken = await getEmbedTokenForPaginatedReport(apiUrl, reportId, accessToken, datasetIds, roles[0], universalProviderName);
+                }
                 // Now embed the report
-                await embedReport(embedUrl, reportResponse.id, embedToken); // Await for the embed process to complete
+                await embedReport(embedUrl, reportType, reportResponse.id, embedToken); // Await for the embed process to complete
                 toggleExportButton(true); // Enable the export button after fetching bookmarks
                 updateMessage(`<strong>Checking for Bookmarks Completed. Ready to Save Test Cases</strong>`);
             } catch (error) {
                 updateMessage(`<strong>Failed to embed report and get bookmarks.</strong>`, 'danger');
                 console.error('Error:', error);
             } // end try
+            
         } // get report details
 
-        // Function to get embed token
-        async function getEmbedToken(apiUrl, workspaceId, reportId, accessToken, role, datasetId, userName) {
+        // Function to get embed token for Paginated Report
+        async function getEmbedTokenForPaginatedReport(apiUrl, reportId, accessToken, datasetIds, role, userName) {
+            // Define the URL for the embed token
+            const url = `${apiUrl}/v1.0/myorg/GenerateToken`;
+
+            // Define the headers for the request
+            const headers = {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': "Bearer " + accessToken
+            };
+
+            // Default to no RLS
+            let jsonBody = {
+                 datasets: datasetIds, // Map datasetIds to the required format
+                 reports: [{ id: reportId }]
+                };
+            
+
+            try {
+                // Acquire an embed token
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(jsonBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to get embed token: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                return data.token;
+            } catch (error) {
+                console.error(`Failed to get embed token: ${error.message}`);
+            }
+        }
+
+        // Function to get embed token for Power BI Report
+        async function getEmbedTokenForPBIReport(apiUrl, workspaceId, reportId, accessToken, role, datasetId, userName) {
             // Define the URL for the embed token
             const url = `${apiUrl}/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/generatetoken`;
 
@@ -286,11 +403,12 @@
                 console.error(`Failed to get embed token: ${error.message}`);
             }
         }
+        
 
         // Function to embed the Power BI report using powerbi-client
-        async function embedReport(embedUrl, reportId, embedToken) {
+        async function embedReport(embedUrl, reportType, reportId, embedToken) {
             const models = window['powerbi-client'].models;
-            
+
             // Report configuration
             const config = {
                 type: 'report',
@@ -301,6 +419,8 @@
                 permissions: models.Permissions.Read,
                 viewMode: models.ViewMode.View                
             };
+
+            console.log(config);
 
             // Get the report container
             const reportContainer = document.getElementById('report-container');
@@ -321,51 +441,64 @@
             // Promise to handle 'rendered' event
             const testRenderedPromise = new Promise((resolve) => {
                 reportContainer.addEventListener('rendered', async function (event) {
-                    resolve("rendered"); // resolve "rendered"
+                    console.log('rendered');
+                    resolve("rendered"); // resolve "rendered"                    
                 }, { once: true }); // The 'once' option ensures the event listener is removed after firing once
             });
 
-            try {
-                const result = await Promise.race([testErrorPromise, testRenderedPromise]);
-                console.log(result);
-                // Get a list of bookmarks
-                let bookmarks = await embed.bookmarksManager.getBookmarks();
+            // Promise to handle 'rendered' event
+            const testLoadedPromise = new Promise((resolve) => {
+                reportContainer.addEventListener('pageChanged', async function (event) {
+                    console.log('loaded');
+                    resolve("loaded"); // resolve "rendered"  
+                }, { once: true }); // The 'once' option ensures the event listener is removed after firing once
+            });            
 
-                let bookmarkState = [];
-                for(let i = 0; i < bookmarks.length; i++) {
-                    if(bookmarks[i].children){
-                        for(let j = 0; j < bookmarks[i].children.length; j++) {
-                            tempState = bookmarks[i].children[j].state;
-                            bookmarkState.push({name: bookmarks[i].children[j].name, displayName: bookmarks[i].children[j].displayName, state: tempState});
-                        }//end for   
-                    }
-                    else{
-                        bookmarkState.push({name: bookmarks[i].name, displayName: bookmarks[i].displayName, state: bookmarks[i].state});
-                    }
-                    // end if
-                }// end for
+            if(reportType === 'PowerBIReport'){ // Get bookmarks for Power BI Report
+                // Get the report object
+                embed = powerbi.get(reportContainer);
+            
+                try {
+                    const result = await Promise.race([testErrorPromise, testRenderedPromise]);
+                    // Get a list of bookmarks
+                    let bookmarks = await embed.bookmarksManager.getBookmarks();
 
-                // Decode and unzip data
-                for(let i = 0; i < bookmarkState.length; i++) {
-                    const gezipedData = atob(bookmarkState[i].state);
-                    const gzipedDataArray = Uint8Array.from(gezipedData, c => c.charCodeAt(0));
-                    const ungzipedDataArray = pako.ungzip(gzipedDataArray);
-                    bookmarkState[i].jsonState = JSON.parse(new TextDecoder().decode(ungzipedDataArray));
-                }   
-
-                // Map bookmark to active sections
-                for(let i = 0; i < appState.pages.length; i++){
-                    let bookmarkPages = [];
-                    for(let j = 0; j < bookmarkState.length; j++){
-                        if(appState.pages[i].name == bookmarkState[j].jsonState.explorationState.activeSection){
-                            bookmarkPages.push(bookmarkState[j]);
+                    let bookmarkState = [];
+                    for(let i = 0; i < bookmarks.length; i++) {
+                        if(bookmarks[i].children){
+                            for(let j = 0; j < bookmarks[i].children.length; j++) {
+                                tempState = bookmarks[i].children[j].state;
+                                bookmarkState.push({name: bookmarks[i].children[j].name, displayName: bookmarks[i].children[j].displayName, state: tempState});
+                            }//end for   
                         }
-                    }//end iterating through bookmarks
-                    appState.pages[i].bookmarks = bookmarkPages;
-                }// end map bookmark to active sections
-                appState.bookmarks = bookmarkState; // Store bookmarks in appState
-            } catch (error) {
-                console.error('An error occurred:', error);
+                        else{
+                            bookmarkState.push({name: bookmarks[i].name, displayName: bookmarks[i].displayName, state: bookmarks[i].state});
+                        }
+                        // end if
+                    }// end for
+
+                    // Decode and unzip data
+                    for(let i = 0; i < bookmarkState.length; i++) {
+                        const gezipedData = atob(bookmarkState[i].state);
+                        const gzipedDataArray = Uint8Array.from(gezipedData, c => c.charCodeAt(0));
+                        const ungzipedDataArray = pako.ungzip(gzipedDataArray);
+                        bookmarkState[i].jsonState = JSON.parse(new TextDecoder().decode(ungzipedDataArray));
+                    }   
+
+                    // Map bookmark to active sections
+                    for(let i = 0; i < appState.pages.length; i++){
+                        let bookmarkPages = [];
+                        for(let j = 0; j < bookmarkState.length; j++){
+                            if(appState.pages[i].name == bookmarkState[j].jsonState.explorationState.activeSection){
+                                bookmarkPages.push(bookmarkState[j]);
+                            }
+                        }//end iterating through bookmarks
+                        appState.pages[i].bookmarks = bookmarkPages;
+                    }// end map bookmark to active sections
+                    appState.bookmarks = bookmarkState; // Store bookmarks in appState
+                } catch (error) {
+                    console.error('An error occurred:', error);
+                }
             }
         }
 
@@ -387,10 +520,51 @@
             }
         }
 
-        // Function to export appState to CSV
+        // Function to export appState to JSON (Paginated Report)
+        function exportJSON() {
+            const rows = [];
+
+            // Test Case
+            const testCase = {
+                "test_case": uuid.v4(), // Generate a unique test case ID
+                "workspace_id": appState.workspaceId,
+                "workspace_name": appState.workspaceName,
+                "report_id": appState.reportId,
+                "report_name": appState.reportName,
+                "dataset_ids": appState.datasetIds,
+                "wait_seconds": 20,
+            }
+            // Add test case
+            rows.push(testCase);
+
+            // Add report parameters if they exist
+            if(appState.rdlReportParameters.length > 0){
+                const testCase2 = {
+                    "test_case": uuid.v4(), // Generate a unique test case ID
+                    "workspace_id": appState.workspaceId,
+                    "workspace_name": appState.workspaceName,
+                    "report_id": appState.reportId,
+                    "report_name": appState.reportName,
+                    "dataset_ids": appState.datasetIds,
+                    "report_parameters" : appState.rdlReportParameters,
+                    "wait_seconds": 20,
+                }                
+                                
+                rows.push(testCase2);
+            }
+
+            const jsonContent = JSON.stringify(rows, null, 4);
+            console.log(jsonContent);
+            // Create a link element to download the JSON
+            const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+            return blob;
+        }
+
+        // Function to export appState to CSV (Power BI Report)
         function exportCSV() {
             const rows = [];
             let fileState = 0;
+            
             // Add header row
             const header = ['"test_case"','"workspace_id"', '"report_id"', '"report_name"', '"page_id"', '"page_name"'];
             if (appState.roles.length > 0) {
@@ -419,7 +593,7 @@
                                     '"' + appState.reportName + '"', 
                                     '"' + page.name + '"', 
                                     '"' + page.displayName + '"', 
-                                    '"' + appState.datasetId + '"', 
+                                    '"' + appState.datasetIds[0] + '"', 
                                     '"' + role + '"', 
                                     '"' + userPrincipalName + '"',
                                     '""','""'
@@ -433,7 +607,7 @@
                                     '"' + appState.reportName + '"', 
                                     '"' + page.name + '"', 
                                     '"' + page.displayName + '"', 
-                                    '"' + appState.datasetId + '"', 
+                                    '"' + appState.datasetIds[0] + '"', 
                                     '"' + role + '"', 
                                     '"' + userPrincipalName + '"',
                                     '"' + bookmark.name + '"',
@@ -478,7 +652,7 @@
                                     '"' + appState.reportName + '"',   
                                     '"' + page.name + '"', 
                                     '"' + page.displayName + '"',
-                                    '"' + appState.datasetId + '"', 
+                                    '"' + appState.datasetIds[0] + '"', 
                                     '"' + role + '"', 
                                     '"' + userPrincipalName + '"'
                                 ].join(','));  
@@ -507,27 +681,57 @@
 
          // Function to upload generated CSV file to the server
         async function saveTestCases() {
-            const csvContent = exportCSV(); // Get the generated CSV content
-            const blob = new Blob([csvContent], { type: 'text/csv' }); // Create a Blob from the CSV content
+            if(appState.reportType === 'PaginatedReport'){
+                updateMessage(`<strong>Saving Paginated Report Test Case to JSON...</strong>`);
+                const jsonContent = exportJSON(); // Get the generated CSV content
+                const blob = new Blob([jsonContent], { type: 'application/json' });
 
-            const formData = new FormData();
-            formData.append('testFile', blob, `${appState.reportName}.csv`); // Append Blob with a filename to FormData
+                const formData = new FormData();
+                formData.append('testFile', blob, `${appState.reportName}.json`); // Append Blob with a filename to FormData
 
-            try {
-                const response = await fetch('/uploadCsv', {
-                    method: 'POST',
-                    body: formData
-                });
+                try {
+                    const response = await fetch('/uploadJson', {
+                        method: 'POST',
+                        body: formData
+                    });
 
-                if (response.ok) {
-                    const jsonResponse = await response.json();
-                    updateMessage(`<strong>Test Cases saved successfully</strong>`, 'success');
-                } else {
-                    const errorResponse = await response.json();
-                    updateMessage(`<strong>Error:</strong> ${errorResponse.error}`, 'danger');
+                    if (response.ok) {
+                        const jsonResponse = await response.json();
+                        updateMessage(`<strong>Test Case saved successfully</strong>`, 'success');
+                    } else {
+                        const errorResponse = await response.json();
+                        updateMessage(`<strong>Error:</strong> ${errorResponse.error}`, 'danger');
+                    }
+                } catch (error) {
+                    updateMessage('Error uploading JSON', 'danger');
                 }
-            } catch (error) {
-                updateMessage('Error uploading CSV', 'danger');
+            }
+            else if(appState.reportType === 'PowerBIReport'){
+                updateMessage(`<strong>Saving Power BI Report Test Cases to CSV...</strong>`);
+                const csvContent = exportCSV(); // Get the generated CSV content
+                const blob = new Blob([csvContent], { type: 'text/csv' }); // Create a Blob from the CSV content
+
+                const formData = new FormData();
+                formData.append('testFile', blob, `${appState.reportName}.csv`); // Append Blob with a filename to FormData
+
+                try {
+                    const response = await fetch('/uploadCsv', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const jsonResponse = await response.json();
+                        updateMessage(`<strong>Test Cases saved successfully</strong>`, 'success');
+                    } else {
+                        const errorResponse = await response.json();
+                        updateMessage(`<strong>Error:</strong> ${errorResponse.error}`, 'danger');
+                    }
+                } catch (error) {
+                    updateMessage('Error uploading CSV', 'danger');
+                }
+            }else{ //Error
+                updateMessage('Error: Report Type not supported', 'danger');
             }
         };        
 

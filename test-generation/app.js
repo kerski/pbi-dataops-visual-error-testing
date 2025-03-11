@@ -215,6 +215,16 @@ app.post('/uploadCsv', upload.single('testFile'), (req, res) => {
     res.json({ message: 'File uploaded successfully', fileName: req.file.originalname });
 });
 
+// Route to upload a JSON test file
+app.post('/uploadJson', upload.single('testFile'), (req, res) => {
+    // Check if file was uploaded
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    res.json({ message: 'File uploaded successfully', fileName: req.file.originalname });
+});
+
 app.listen(port, () => {
     console.log(`App running at http://localhost:${port}`);
 });

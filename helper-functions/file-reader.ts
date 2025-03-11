@@ -21,3 +21,18 @@ export function readCSVFilesFromFolder(folderPath: string): any {
     return tempRecords;
 }
 
+// Function to read all JSON files from a folder
+export function readJSONFilesFromFolder(folderPath: string): any {
+  let tempRecords: Array<any> = [];
+  // Read the directory
+  fs.readdirSync(folderPath).forEach(file => {
+      // Check if the file is a JSON file
+      if (path.extname(file) === '.json') {
+          let data = fs.readFileSync(path.join(folderPath, file), 'utf8');
+          let json = JSON.parse(data);
+          tempRecords.push(json);
+      } // end file extension check
+  });
+  // Flatten the tempRecords array
+  return tempRecords.flat();
+}
