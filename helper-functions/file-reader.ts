@@ -30,6 +30,15 @@ export function readJSONFilesFromFolder(folderPath: string): any {
       if (path.extname(file) === '.json') {
           let data = fs.readFileSync(path.join(folderPath, file), 'utf8');
           let json = JSON.parse(data);
+          for (let i = 0; i < json.length; i++) {
+            // Concatenate the name properties in the report_parameters array
+            if (json[i].report_parameters) {
+              json[i].report_parameters_string = json[i].report_parameters.map(param => `rp:${param.name}=${param.value}`).join('&');
+            }
+            else{
+              json[i].report_parameters_string = '';
+            }
+          }// end for
           tempRecords.push(json);
       } // end file extension check
   });

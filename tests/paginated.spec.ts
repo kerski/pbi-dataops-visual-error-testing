@@ -62,8 +62,9 @@ testRecords.forEach((record) => {
 
 // Test for visual errors
 testRecords.forEach((record) => {
-  test(`test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id} `, async ({ browser }) => {
-    logToConsole(`##[debug]test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}`,isVerboseLogging);
+  test(`test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/rdlreports/${record.report_id}${record.report_parameters_string != '' && record.report_parameters_string !== undefined ? "?" + record.report_parameters_string : ''}  `, async ({ browser }) => {
+    logToConsole(`##[debug]test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/rdlreports/${record.report_id}${record.report_parameters_string != '' && record.report_parameters_string !== undefined ? "?" + record.report_parameters_string : ''}`,isVerboseLogging);
+    //logToConsole(record, isVerboseLogging);
     //const accessToken = await getAccessToken(testSettings);
     browser = await chromium.launch({ args: ['--disable-web-security'], headless: false });
     const context = await browser.newContext();
