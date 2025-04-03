@@ -14,6 +14,8 @@ Templates for testing Power BI reports for broken visuals using PowerShell and M
     - [4. Add Test Cases](#4-add-test-cases)
       - [PowerShell Approach](#powershell-approach)
       - [User Interface Approach](#user-interface-approach)
+      - [Paginated Report Support](#paginated-report-support)
+        - [Multiple Value Parameters](#multiple-value-parameters)
     - [5. Run the Tests Locally](#5-run-the-tests-locally)
   - [Reading the Results](#reading-the-results)
   - [Broken Visuals](#broken-visuals)
@@ -153,6 +155,35 @@ For generating test cases there are two approaches. The first approach is the Po
 
 6.  **Generate Test**
     Follow the instructions on the page to generate tests for a specific report.
+
+#### Paginated Report Support
+
+Test generation now supports Paginated Reports <u>that use Semantic Models for sources</u> and will test for error modals that appear on the screen.  
+
+![RDL Error Example](./documentation/images/rdl-error.png)
+
+When a test is generated for a Paginated Report it will create a JSON file that produces an array of test cases.  By default, a test case will be created that tries loading the paginated report and checks for errors.  
+
+Each test has the following properties:
+
+- test_case: A unique identifier for the test case.
+- workspace_id: The GUID of the Power BI workspace where the report resides.
+- report_id: The GUID of the Power BI report being tested.
+- report_name: The name of the report being tested.
+- dataset_ids: An array of semantic models associated with the report. Each semantic model contains:
+  - id: The GUID of the semantic model.
+  - xmlaPermissions: The permissions level for the semantic model.
+  - wait_seconds: The number of seconds to wait before performing the next action in the test (e.g., 20).
+
+If the paginated reports have parameters, it will create a template set of parameters within the JSON property `report_parameters`.  You will need to replace the null value with an actual value so the test will pass those parameters to the report and render in the test.
+
+![RDL Test File Example](./documentation/images/rdl-test-file.png)
+
+##### Multiple Value Parameters
+
+If you have a parameter that requires multiple values, you can repeat the name, value pair within the report_parameters properties to pass multiple parameters into the paginated report during the test.
+
+![Multivalue](./documentation/images/rdl-multi.png)
 
 ### 5. Run the Tests Locally
 

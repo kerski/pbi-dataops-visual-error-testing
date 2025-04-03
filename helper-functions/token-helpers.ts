@@ -22,6 +22,11 @@ export interface EmbedInfo {
   role: string;
 }
 
+export interface PaginatedEmbedInfo {
+  reports: any;
+  datasets: [];
+}
+
 export interface TestSettings {
   clientId: string;
   clientSecret: string;
@@ -123,6 +128,25 @@ export async function getAccessToken(testSettings:TestSettings): Promise<string 
     return response?.accessToken;
   } catch (error) {
     console.error(`Failed to get access token: ${error}`);
+  }
+}
+
+// Function to get embed token
+export async function getPaginatedEmbedToken(embedInfo: PaginatedEmbedInfo, endpoint: Endpoints, accessToken: any): Promise<string | undefined> {
+  // Define the URL for the embed token
+  const url = `${endpoint.apiPrefix}/v1.0/myorg/GenerateToken`;
+  // Define the headers for the request
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Authorization': "Bearer " + accessToken
+  };
+
+  try {
+    // Acquire an embed token
+    const response = await axios.post(url, embedInfo, { headers: headers });
+    return response.data.token;
+  } catch (error) {
+    console.error(`Failed to get embed token: ${error}`);
   }
 }
 

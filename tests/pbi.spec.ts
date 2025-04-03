@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { getAccessToken, getEmbedToken, EmbedInfo, TestSettings, getAPIEndpoints } from '../helper-functions/token-helpers';
 // Used for local testings
 import { IReportEmbedConfiguration } from 'powerbi-client';
-import { readCSVFilesFromFolder } from '../helper-functions/csv-reader';
+import { readCSVFilesFromFolder } from '../helper-functions/file-reader';
 import { logToConsole } from '../helper-functions/logging';
 import { log } from 'console';
 

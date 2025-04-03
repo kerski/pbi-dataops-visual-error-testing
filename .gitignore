@@ -9,5 +9,7 @@ localsettings.json
 /blob-report/
 /playwright/.cache/
 test-cases/*.csv
+test-cases/*.json
 .env
 /release/
+

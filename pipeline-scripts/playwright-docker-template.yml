@@ -16,7 +16,7 @@ jobs:
   displayName: 'Run Playwright Tests'
   pool:
     vmImage: ubuntu-latest
-  container: mcr.microsoft.com/playwright:v1.48.2-jammy
+  container: mcr.microsoft.com/playwright:v1.48.2-noble
   steps:
   - task: NodeTool@0
     inputs:

@@ -1,7 +1,5 @@
 import type { FullConfig } from '@playwright/test';
-import { Environment, getAPIEndpoints } from './helper-functions/token-helpers';
-import { readCSVFilesFromFolder } from './helper-functions/csv-reader';
-import path from 'path';
+
 
 /**
  * Global setup function for Playwright tests.
