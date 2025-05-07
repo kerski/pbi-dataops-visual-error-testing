@@ -77,6 +77,14 @@ testRecords.forEach((record) => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
+    // Get the embedURL for the report
+    const reportResponse = await fetch(`${endPoints.apiPrefix}/v1.0/myorg/groups/${record.workspace_id}/reports/${record.report_id}`, {
+      method: 'GET',
+      headers: {
+          'Authorization': `Bearer ${testAccessToken}`
+      }
+    }).then(res => res.json());
+
     await page.goto('about:blank');
     await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/powerbi-client/2.23.1/powerbi.min.js' });
 
@@ -87,6 +95,7 @@ testRecords.forEach((record) => {
     let reportInfo = {
       reportId: record.report_id,
       page_id: record.page_id,
+      embedUrl: reportResponse.embedUrl, // use the one from the report response
       embedToken: embedToken,
       endpoints: endPoints
     };
@@ -104,7 +113,7 @@ testRecords.forEach((record) => {
         type: 'report',
         id: reportInfo.reportId,
         pageName: reportInfo.page_id,
-        embedUrl: reportInfo.endpoints.embedUrl,
+        embedUrl: reportInfo.embedUrl,
         accessToken: reportInfo.embedToken,
         tokenType: models.TokenType.Embed,
         permissions: models.Permissions.Read,
@@ -120,7 +129,7 @@ testRecords.forEach((record) => {
           bookmark: {
             name: reportInfo.bookmark_id
           },
-          embedUrl: reportInfo.endpoints.embedUrl,
+          embedUrl: reportInfo.embedUrl,
           accessToken: reportInfo.embedToken,
           tokenType: models.TokenType.Embed,
           permissions: models.Permissions.Read,
