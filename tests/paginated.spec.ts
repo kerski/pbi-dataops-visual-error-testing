@@ -6,6 +6,9 @@ import { readJSONFilesFromFolder as readJSONFilesFromFolder } from '../helper-fu
 import { logToConsole } from '../helper-functions/logging';
 
 /* VARIABLES */
+if (!process.env.CLIENT_ID || !process.env.CLIENT_SECRET || !process.env.TENANT_ID || !process.env.ENVIRONMENT) {
+  throw new Error('Missing required environment variables.');
+}
 
 // Initialize the environment variables
 let testRecords: Array<any>;

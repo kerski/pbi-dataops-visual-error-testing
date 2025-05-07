@@ -1,8 +1,8 @@
-// Importing required modules for Auth Token
-import { ConfidentialClientApplication } from '@azure/msal-node'
+// Importing required modules for authentication and HTTP requests
+import { ConfidentialClientApplication } from '@azure/msal-node';
 import axios from 'axios';
 
-// Interface for API endpoints
+// Interfaces for configuration and embedding
 export interface Endpoints {
   apiPrefix: string;
   webPrefix: string;
@@ -11,7 +11,6 @@ export interface Endpoints {
   loginUrl: string;
 }
 
-// Interface for API endpoints
 export interface EmbedInfo {
   workspaceId: string;
   reportId: string;
@@ -20,6 +19,14 @@ export interface EmbedInfo {
   userName: string;
   datasetId: string;
   role: string;
+}
+
+export interface ReportEmbedInfo {
+  reports: any[];
+  datasets: any[];
+  targetWorkspaces: any[];
+  accessLevel: string;
+  identities?: any[];
 }
 
 export interface PaginatedEmbedInfo {
@@ -35,7 +42,7 @@ export interface TestSettings {
   testCases: string;
 }
 
-// Enum for different environments
+// Enum for supported cloud environments
 export enum Environment {
   Public = "Public",
   Germany = "Germany",
@@ -45,9 +52,11 @@ export enum Environment {
   USGovDoD = "USGovDoD"
 }
 
-// Function to get API endpoints based on the environment
+/**
+ * Returns the correct API endpoints for the specified Power BI environment.
+ */
 export function getAPIEndpoints(environment: Environment): Endpoints {
-  // Default endpoints
+  // Default to Public cloud endpoints
   let endpoints: Endpoints = {
     apiPrefix: 'https://api.powerbi.com',
     webPrefix: 'https://app.powerbi.com',
@@ -56,16 +65,13 @@ export function getAPIEndpoints(environment: Environment): Endpoints {
     loginUrl: 'https://login.microsoftonline.com'
   };
 
-  // Switch case to set endpoints based on the environment
+  // Override endpoints for other sovereign clouds
   switch (environment) {
-    case Environment.Public:
-      break;
     case Environment.Germany:
       endpoints.apiPrefix = "https://api.powerbi.de";
       endpoints.webPrefix = "https://app.powerbi.de";
       endpoints.resourceUrl = "https://analysis.cloudapi.de/powerbi/api";
       endpoints.embedUrl = "https://app.powerbi.de/reportEmbed";
-      endpoints.loginUrl = "https://login.microsoftonline.com";
       break;
     case Environment.China:
       endpoints.apiPrefix = "https://api.powerbi.cn";
@@ -79,7 +85,6 @@ export function getAPIEndpoints(environment: Environment): Endpoints {
       endpoints.webPrefix = "https://app.powerbigov.us";
       endpoints.resourceUrl = "https://analysis.usgovcloudapi.net/powerbi/api";
       endpoints.embedUrl = "https://app.powerbigov.us/reportEmbed";
-      endpoints.loginUrl = "https://login.microsoftonline.com";
       break;
     case Environment.USGovHigh:
       endpoints.apiPrefix = "https://api.high.powerbigov.us";
@@ -95,100 +100,102 @@ export function getAPIEndpoints(environment: Environment): Endpoints {
       endpoints.embedUrl = "https://app.mil.powerbi.us/reportEmbed";
       endpoints.loginUrl = "https://login.microsoftonline.us";
       break;
-    default:
-      break;
   }
 
-  // Return the endpoints
-  return endpoints
+  return endpoints;
 }
 
-// Function to get access token
-export async function getAccessToken(testSettings:TestSettings): Promise<string | undefined> {
-  // Get API endpoints for the environment
+/**
+ * Acquires an Azure AD token using client credentials.
+ */
+export async function getAccessToken(testSettings: TestSettings): Promise<string | undefined> {
   const endpoint = getAPIEndpoints(testSettings.environment as Environment);
 
-  // ConfidentialClientApplication configuration
-  const pca = {
+  // Configure the confidential client for MSAL
+  const cca = new ConfidentialClientApplication({
     auth: {
       clientId: testSettings.clientId,
       clientSecret: testSettings.clientSecret,
       authority: `${endpoint.loginUrl}/${testSettings.tenantId}`
     }
-  };
-  // Create a ConfidentialClientApplication object
-  const cca = new ConfidentialClientApplication(pca);
+  });
 
-  // Define the scopes for the access token
+  // Request token with scope for Power BI
   const tokenRequest = { scopes: [`${endpoint.resourceUrl}/.default`] };
 
   try {
-    // Acquire a token
     const response = await cca.acquireTokenByClientCredential(tokenRequest);
     return response?.accessToken;
   } catch (error) {
-    console.error(`Failed to get access token: ${error}`);
+    console.error(`Failed to get access token:`, error);
   }
 }
 
-// Function to get embed token
-export async function getPaginatedEmbedToken(embedInfo: PaginatedEmbedInfo, endpoint: Endpoints, accessToken: any): Promise<string | undefined> {
-  // Define the URL for the embed token
+/**
+ * Requests an embed token for a report.
+ */
+export async function getReportEmbedToken(embedInfo: ReportEmbedInfo, endpoint: Endpoints, accessToken: string): Promise<string | undefined> {
   const url = `${endpoint.apiPrefix}/v1.0/myorg/GenerateToken`;
-  // Define the headers for the request
   const headers = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Authorization': "Bearer " + accessToken
+    'Authorization': `Bearer ${accessToken}`
   };
 
   try {
-    // Acquire an embed token
-    const response = await axios.post(url, embedInfo, { headers: headers });
+    const response = await axios.post(url, embedInfo, { headers });
     return response.data.token;
-  } catch (error) {
-    console.error(`Failed to get embed token: ${error}`);
+  } catch (error: any) {
+    console.error(`Failed to get embed token:`, error);
+    if (error.response) {
+      console.error('Error Status:', error.response.status);
+      console.error('Error Data:', error.response.data);
+    } else if (error.request) {
+      console.error('No response received:', error.request);
+    } else {
+      console.error('Error setting up request:', error.message);
+    }
   }
 }
 
-// Function to get embed token
-export async function getEmbedToken(embedInfo: EmbedInfo, endpoint: Endpoints, accessToken: any): Promise<string | undefined> {
-  // Define the URL for the embed token
-  const url = `${endpoint.apiPrefix}/v1.0/myorg/groups/${embedInfo.workspaceId}/reports/${embedInfo.reportId}/generatetoken`;
-  // Define the headers for the request
+/**
+ * Requests an embed token for paginated report scenarios.
+ */
+export async function getPaginatedEmbedToken(embedInfo: PaginatedEmbedInfo, endpoint: Endpoints, accessToken: string): Promise<string | undefined> {
+  const url = `${endpoint.apiPrefix}/v1.0/myorg/GenerateToken`;
   const headers = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Authorization': "Bearer " + accessToken
+    'Authorization': `Bearer ${accessToken}`
   };
-
-  // default to now RLS
-  let jsonBody = {
-    "accessLevel": "View"
-  };
-
-  // Check if the embedInfo role is defined and if we need to include RLS testing
-  if(embedInfo.role !== undefined && embedInfo.datasetId !== '') {
-    // Define the body for the RLS request
-    jsonBody = {
-      "accessLevel": "View",
-      "identities": [
-        {
-          "username": embedInfo.userName,
-          "roles": [
-            embedInfo.role
-          ],
-          "datasets": [
-            embedInfo.datasetId
-          ]
-        }
-      ]
-    };
-  }// end embedInfo check
 
   try {
-    // Acquire an embed token
-    const response = await axios.post(url, jsonBody, { headers: headers });
+    const response = await axios.post(url, embedInfo, { headers });
     return response.data.token;
-  } catch (error) {
-    console.error(`Failed to get embed token: ${error}`);
+  } catch (error: any) {
+    console.error(`Failed to get embed token:`, error);
   }
+}
+
+/**
+ * Creates a standardized embed payload for a report from a record.
+ */
+export function createReportEmbedInfo(record: any): ReportEmbedInfo {
+  const embedInfo: ReportEmbedInfo = {
+    reports: [{ id: record.report_id }],
+    datasets: [{ id: record.dataset_id }],
+    targetWorkspaces: [{ id: record.workspace_id }],
+    accessLevel: 'View'
+  };
+
+  // If RLS is needed, set the identity
+  if (record.user_name) {
+    embedInfo.identities = [
+      {
+        username: record.user_name,
+        roles: [record.role],
+        datasets: [record.dataset_id]
+      }
+    ];
+  }
+
+  return embedInfo;
 }

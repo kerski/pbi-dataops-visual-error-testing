@@ -566,9 +566,9 @@
             let fileState = 0;
             
             // Add header row
-            const header = ['"test_case"','"workspace_id"', '"report_id"', '"report_name"', '"page_id"', '"page_name"'];
+            const header = ['"test_case"','"workspace_id"', '"report_id"', '"report_name"', '"page_id"', '"page_name"','"dataset_id"'];
             if (appState.roles.length > 0) {
-                header.push('"dataset_id"', '"role"', '"user_name"');
+                header.push('"role"', '"user_name"');
                 fileState += 1;
             }
             if (appState.bookmarks.length > 0) {
@@ -625,6 +625,7 @@
                                 '"' + appState.reportName + '"',  
                                 '"' + page.name + '"', 
                                 '"' + page.displayName + '"', 
+                                '"' + appState.datasetIds[0] + '"', 
                                 '""','""'
                             ].join(','));                            
                         // Iterate through bookmarks
@@ -637,6 +638,7 @@
                                     '"' + appState.reportName + '"',  
                                     '"' + page.name + '"', 
                                     '"' + page.displayName + '"',
+                                    '"' + appState.datasetIds[0] + '"', 
                                     '"' + bookmark.name + '"',
                                     '"' + bookmark.displayName + '"'
                                 ].join(','));
@@ -665,7 +667,8 @@
                                 '"' + appState.reportId + '"',
                                 '"' + appState.reportName + '"', 
                                 '"' + page.name + '"',
-                                '"' + page.displayName + '"'
+                                '"' + page.displayName + '"',
+                                '"' + appState.datasetIds[0] + '"',                                 
                             ].join(','));  
                     }// end roles.length check
                 });//end pages foreach
