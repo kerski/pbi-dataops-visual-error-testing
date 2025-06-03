@@ -1,5 +1,5 @@
 variables:
-  - group: VisualTests
+  - group: Playwright_Testing_Services
 
 trigger: none
 

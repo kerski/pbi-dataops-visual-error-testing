@@ -1,13 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { chromium } from 'playwright';
-import { getAccessToken, getEmbedToken, EmbedInfo, TestSettings, getAPIEndpoints } from '../helper-functions/token-helpers';
+import {
+  getAccessToken,
+  TestSettings, getAPIEndpoints,
+  getReportEmbedToken,
+  createReportEmbedInfo
+
+} from '../helper-functions/token-helpers';
 // Used for local testings
 import { IReportEmbedConfiguration } from 'powerbi-client';
 import { readCSVFilesFromFolder } from '../helper-functions/file-reader';
 import { logToConsole } from '../helper-functions/logging';
-import { log } from 'console';
 
 /* VARIABLES */
+if (!process.env.CLIENT_ID || !process.env.CLIENT_SECRET || !process.env.TENANT_ID || !process.env.ENVIRONMENT) {
+  throw new Error('Missing required environment variables.');
+}
 
 // Initialize the environment variables
 let testRecords: Array<any>;
@@ -50,16 +58,11 @@ test('test if access token can be generated from the environment variables provi
 testRecords.forEach((record) => {
   test(`test ${record.test_case} - '${record.report_name}' embed token is accessible ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}`, async ({ }) => {
     logToConsole(`##[debug]test ${record.test_case} - '${record.report_name}' embed token is accessible ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}`, isVerboseLogging);
-    const tmpEmbedInfo: EmbedInfo = {
-      workspaceId: record.workspace_id,
-      reportId: record.report_id,
-      datasetId: record.dataset_id,
-      pageId: record.page_id,
-      userName: record.user_name,
-      role: record.role
-    };
+
+    const tmpEmbedInfo = createReportEmbedInfo(record);
+    const embedToken = await getReportEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
     //logToConsole('------' + testAccessToken + '-------', isVerboseLogging);
-    const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
+    //const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
     expect(embedToken).not.toBeUndefined();
   });
 }// end for
@@ -67,35 +70,38 @@ testRecords.forEach((record) => {
 
 // Test for visual errors
 testRecords.forEach((record) => {
-  test(`test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `, async ({ browser }) => {
-    logToConsole(`##[debug]test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id} `,isVerboseLogging);
+  test(`test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id}${record.bookmark_id != '' && record.bookmark_id !== undefined ? "?bookmarkGuid=" + record.bookmark_id : ""} `, async ({ browser }) => {
+    logToConsole(`##[debug]test ${record.test_case} - '${record.report_name}' for visual errors ${record.role != '' && record.role !== undefined ? "(Role: " + record.role + ") " : ''} ${record.bookmark_id != '' && record.bookmark_id !== undefined ? "(Bookmark: " + record.bookmark_name + ")" : ''}, Link: ${endPoints.webPrefix}/groups/${record.workspace_id}/reports/${record.report_id}/${record.page_id}${record.bookmark_id != '' && record.bookmark_id !== undefined ? "?bookmarkGuid=" + record.bookmark_id : ""}`, isVerboseLogging);
     const accessToken = await getAccessToken(testSettings);
     browser = await chromium.launch({ args: ['--disable-web-security'], headless: false });
     const context = await browser.newContext();
     const page = await context.newPage();
 
+    // Get the embedURL for the report
+    const reportResponse = await fetch(`${endPoints.apiPrefix}/v1.0/myorg/groups/${record.workspace_id}/reports/${record.report_id}`, {
+      method: 'GET',
+      headers: {
+          'Authorization': `Bearer ${testAccessToken}`
+      }
+    }).then(res => res.json());
+
     await page.goto('about:blank');
     await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/powerbi-client/2.23.1/powerbi.min.js' });
 
-    const tmpEmbedInfo: EmbedInfo = {
-      workspaceId: record.workspace_id,
-      reportId: record.report_id,
-      datasetId: record.dataset_id,
-      pageId: record.page_id,
-      userName: record.user_name,
-      role: record.role
-    };
-    const embedToken = await getEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
+    const tmpEmbedInfo = createReportEmbedInfo(record);
+    // Get the embedURL for the Power BI report
+    const embedToken = await getReportEmbedToken(tmpEmbedInfo, endPoints, testAccessToken);
 
     let reportInfo = {
-      reportId: tmpEmbedInfo.reportId,
-      page_id: tmpEmbedInfo.pageId,
+      reportId: record.report_id,
+      page_id: record.page_id,
+      embedUrl: reportResponse.embedUrl, // use the one from the report response
       embedToken: embedToken,
       endpoints: endPoints
     };
 
     // Handle the bookmark
-    if(record.bookmark_id != '' && record.bookmark_id !== undefined){
+    if (record.bookmark_id != '' && record.bookmark_id !== undefined) {
       reportInfo['bookmark_id'] = record.bookmark_id;
     }
 
@@ -107,15 +113,15 @@ testRecords.forEach((record) => {
         type: 'report',
         id: reportInfo.reportId,
         pageName: reportInfo.page_id,
-        embedUrl: reportInfo.endpoints.embedUrl,
+        embedUrl: reportInfo.embedUrl,
         accessToken: reportInfo.embedToken,
         tokenType: models.TokenType.Embed,
         permissions: models.Permissions.Read,
         viewMode: models.ViewMode.View
       };
-      
+
       // Apply bookmark if it exists
-      if(reportInfo.bookmark_id && reportInfo.bookmark_id.trim() !== "") {
+      if (reportInfo.bookmark_id && reportInfo.bookmark_id.trim() !== "") {
         embedConfiguration = {
           type: 'report',
           id: reportInfo.reportId,
@@ -123,12 +129,12 @@ testRecords.forEach((record) => {
           bookmark: {
             name: reportInfo.bookmark_id
           },
-          embedUrl: reportInfo.endpoints.embedUrl,
+          embedUrl: reportInfo.embedUrl,
           accessToken: reportInfo.embedToken,
           tokenType: models.TokenType.Embed,
           permissions: models.Permissions.Read,
           viewMode: models.ViewMode.View
-        };        
+        };
       }// apply bookmark
 
       // Initialize the powerbi service
@@ -153,7 +159,7 @@ testRecords.forEach((record) => {
       // Wait for the report to render or error out using the race condition
       let result = await Promise.race([testErrorPromise, testRenderedPromise]);
       return result === undefined ? "passed" : "failed";
-      
+
     }, reportInfo)
 
     expect(test).toBe("passed");

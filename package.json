@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@azure/microsoft-playwright-testing": "^1.0.0-beta.3",
     "@azure/msal-node": "^2.9.0",
     "asynckit": "^0.4.0",
     "axios": "^1.7.2",
@@ -50,6 +49,7 @@
     "window-post-message-proxy": "^0.2.8"
   },
   "devDependencies": {
+    "@azure/microsoft-playwright-testing": "^1.0.0-beta.7",
     "@playwright/test": "^1.48.2",
     "@types/node": "^20.13.0"
   },
