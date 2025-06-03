@@ -9,6 +9,7 @@ export default defineConfig(
     exposeNetwork: '<loopback>',
     timeout: 30000,
     os: ServiceOS.LINUX,
+    serviceAuthType:'ACCESS_TOKEN',
     useCloudHostedBrowsers: true // Set to false if you want to only use reporting and not cloud hosted browsers
   }),
   {
@@ -17,6 +18,6 @@ export default defineConfig(
     This will override any reporter options specified in the base playwright config.
     If you are using more reporters, please update your configuration accordingly.
     */
-    reporter: [['list'], ['@azure/microsoft-playwright-testing/reporter']],
+    reporter: [['list'], ['@azure/microsoft-playwright-testing/reporter'],['junit', { outputFile: 'test-results/results.xml' }]],
   }
 );

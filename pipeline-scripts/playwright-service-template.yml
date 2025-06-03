@@ -1,5 +1,5 @@
 variables:
-  - group: VisualTests
+  - group: Playwright_Testing_Services
 
 trigger: none
 
@@ -8,7 +8,7 @@ jobs:
   displayName: 'Run Playwright Tests'
   pool:
     vmImage: ubuntu-latest
-  container: mcr.microsoft.com/playwright:v1.52.0-noble
+  container: mcr.microsoft.com/playwright:v1.48.2-noble
   steps:
   - task: NodeTool@0
     inputs:
