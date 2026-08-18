@@ -22,9 +22,9 @@ jobs:
     artifact: csvArtifacts
   - checkout: self
   - task: NodeTool@0
-    displayName: 'Use Node version 16'
+    displayName: 'Use Node version 24'
     inputs:
-      versionSpec: 16.x
+      versionSpec: 24.x
   - script: |
       npm ci
     displayName: "NPM Install"
