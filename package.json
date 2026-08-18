@@ -53,6 +53,9 @@
     "@playwright/test": "^1.48.2",
     "@types/node": "^20.13.0"
   },
+  "scripts": {
+    "release": "pwsh -ExecutionPolicy Bypass -File ./create-release.ps1"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"
